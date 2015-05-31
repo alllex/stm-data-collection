@@ -15,10 +15,10 @@ import Data.List(sort)
 {-   Debug setting   -}
 
 modeDebug :: Bool
-modeDebug = True
+modeDebug = False
 
 deepDebug :: Bool
-deepDebug = True
+deepDebug = False
 
 printDebug :: String -> IO ()
 printDebug msg = if modeDebug || deepDebug then putStrLn msg else return ()
