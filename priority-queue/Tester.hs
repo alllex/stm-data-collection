@@ -10,7 +10,7 @@ import Control.Monad
 import PriorityQueue
 import ListPriorityQueue
 import TListPriorityQueue
-import Data.List(sort)
+import Data.List(sort, delete)
 
 {-   Debug setting   -}
 
@@ -142,7 +142,7 @@ prod'n'cons pcount ccount pq vals = do
             vs <- takeMVar consVals
             x `shouldSatisfy` (`elem` vs)
             printDebug $ nmsg $ show x
-            case drop1 x vs of
+            case delete x vs of
               [] -> do
                 putMVar consVals []
                 printDebug $ nmsg "DONE"
@@ -150,10 +150,6 @@ prod'n'cons pcount ccount pq vals = do
                 putMVar consVals vs'
                 printDeepDebug $ nmsg "continues consuming"
                 consRole prodVals consVals
-        where
-            drop1 _ []                   = []
-            drop1 x (x':xs') | x' == x   = xs'
-                             | otherwise = x' : drop1 x xs'
 
 
 prodNconsK :: (Show k, PriorityQueue q k k) => STM (q k k) -> Int -> Int -> [k] -> IO ()
