@@ -12,10 +12,26 @@ import ListPriorityQueue
 import TListPriorityQueue
 import Data.List(sort)
 
+{-   Debug setting   -}
+
+modeDebug :: Bool
+modeDebug = True
+
+deepDebug :: Bool
+deepDebug = True
+
+printDebug :: String -> IO ()
+printDebug msg = if modeDebug || deepDebug then putStrLn msg else return ()
+
+printDeepDebug :: String -> IO ()
+printDeepDebug msg = if deepDebug then putStrLn msg else return ()
+
+{-   Helpers   -}
+
 at :: STM a -> IO a
 at = atomically
 
-{-   Structural checkers and properties -}
+{-   Structural checkers and properties   -}
 
 addManyRemOne :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> Int -> IO ()
 addManyRemOne _ [] _ = return ()
@@ -61,7 +77,7 @@ addRemEach cons vals = do
 addRemEachProp :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> IO ()
 addRemEachProp = addRemEach
 
-{-   Producer/Consumer checkers and properties -}
+{-   Producer/Consumer checkers and properties   -}
 
 fork'n'join :: [IO a] -> IO ()
 fork'n'join ios = do
@@ -83,60 +99,56 @@ prod'n'cons pcount ccount pq vals = do
   let conss = replicate ccount $ consRole prodVals consVals
   fork'n'join $ prods ++ conss
   where
-      -- msg mark name m = putStrLn $ name ++ "\t" ++ mark ++ "\t" ++ m
-      -- pmsg = msg "---->"
-      -- cmsg = msg "<<<<<"
+      msg mark name m = name ++ "\t" ++ mark ++ "\t" ++ m
+      pmsg = msg "---->"
+      cmsg = msg "<<<<<"
 
       prodRole prodVals = do
-        -- tid <- myThreadId
-        -- let tname = show tid
-        -- putStrLn $ "P(" ++ tname ++ ")\t\twait on values"
+        tid <- myThreadId
+        let nmsg = pmsg $ show tid
+        printDeepDebug $ nmsg "is waiting on values"
         vs <- takeMVar prodVals
-        -- putStrLn $ "P(" ++ tname ++ ")\t\tgot values"
+        printDeepDebug $ nmsg "got values"
         case vs of
           [] -> do
             putMVar prodVals []
-            -- pmsg tname "DONE"
-            -- putStrLn $ "P(" ++ tname ++ ")\t\tDONE"
+            printDebug $ nmsg "DONE"
           (v:vs') -> do
-            -- putStrLn $ "P(" ++ tname ++ ")\t\tput back rest values"
+            printDeepDebug $ nmsg "puts back rest values"
             putMVar prodVals vs'
-            -- putStrLn $ "P(" ++ tname ++ ")\t\t >>> " ++ show v
             at $ insert pq v v
-            -- pmsg tname $ show v
-            -- putStrLn $ "P(" ++ tname ++ ")\t\tcontinue producing"
+            printDebug $ nmsg $ show v
+            printDeepDebug $ nmsg "continues producing"
             prodRole prodVals
 
       consRole prodVals consVals = do
-        -- tid <- myThreadId
-        -- let tname = show tid
-        -- putStrLn $ "C(" ++ tname ++ ")\t\tconsume value"
+        tid <- myThreadId
+        let nmsg = cmsg $ show tid
+        printDeepDebug $ nmsg "is about to consume value"
         mx <- at $ tryDeleteMin pq
         case mx of
           Nothing -> do
             vs <- takeMVar prodVals
             putMVar prodVals vs
-            -- putStrLn $ "P(" ++ tname ++ ")\t\tgot values"
+            printDeepDebug $ nmsg "got values"
             case vs of
               [] -> do
-                -- cmsg tname "starving..."
+                printDebug $ nmsg "is starving..."
                 return ()
               _  -> do
                 consRole prodVals consVals
           (Just x) -> do
-            -- putStrLn $ "C(" ++ tname ++ ")\t\twait on values"
+            printDeepDebug $ nmsg "is waiting on values"
             vs <- takeMVar consVals
-            -- putStrLn $ "C(" ++ tname ++ ")\t\t <<< " ++ show x
             x `shouldSatisfy` (`elem` vs)
-            -- cmsg tname $ show x
+            printDebug $ nmsg $ show x
             case drop1 x vs of
               [] -> do
                 putMVar consVals []
-                -- cmsg tname "DONE"
-                -- putStrLn $ "C(" ++ tname ++ ")\t\tDONE"
+                printDebug $ nmsg "DONE"
               vs' -> do
                 putMVar consVals vs'
-                -- putStrLn $ "C(" ++ tname ++ ")\t\tcontinue consuming"
+                printDeepDebug $ nmsg "continues consuming"
                 consRole prodVals consVals
         where
             drop1 _ []                   = []
@@ -146,37 +158,15 @@ prod'n'cons pcount ccount pq vals = do
 
 prodNconsK :: (Show k, PriorityQueue q k k) => Int -> Int -> STM (q k k) -> [k] -> IO ()
 prodNconsK n k pqcons vals = do
-  -- putStrLn $ ">>> Start Producer/Consumer test with " ++
-  --              show n ++ "/" ++ show k ++
-  --              " capacities and values: " ++ show vals
+  printDeepDebug $ ">>> Start Producer/Consumer test with " ++
+                   show n ++ "/" ++ show k ++ " capacities"
   pq <- at $ pqcons
   prod'n'cons n k pq vals
-  -- putStrLn $ "<<< FINISH Producer/Consumer test with " ++
-  --              show n ++ "/" ++ show k ++
-  --              " capacities and values: " ++ show vals
-
-{-
-loudCounter :: MVar Int -> Int -> Int -> IO ()
-loudCounter global name n = do
-  putStrLn $ show name ++ " :: started"
-  forM_ [1..n] $ \k -> do
-    modifyMVar_ global $ return . (+1)
-    putStrLn $ show name ++ " :: count " ++ show k
-  putStrLn $ show name ++ " :: finished"
+  printDeepDebug $ ">>> Finish Producer/Consumer test with " ++
+                   show n ++ "/" ++ show k ++ " capacities"
 
 
-tmpTest :: IO ()
-tmpTest = do
-  global <- newMVar 0
-  putStrLn "main :: let's fork"
-  fork'n'join [ loudCounter global n n | n <- [1..5] ]
-  gval <- takeMVar global
-  putStrLn $ "Global counter = " ++ show gval
-  putStrLn "main :: all joined"
--}
-
-
-{- Per implementation test runner -}
+{-   Per implementation test runner   -}
 
 testImpl :: PriorityQueue q Int Int => String -> STM (q Int Int) -> IO ()
 testImpl base cons = hspec $ do
@@ -228,9 +218,10 @@ testImpl base cons = hspec $ do
     it "run 2 producers and 5 consumers on several items" $ do
       prodNconsK 2 5 cons [1..25]
 
+
 main :: IO ()
 main = do
-  putStrLn "\n{--------------------  NEW TEST SET  --------------------}\n"
+  printDebug "\n{--------------------  NEW TEST SET  --------------------}\n"
   testImpl "Coarse-grained List" (new :: STM (ListPriorityQueue  Int Int))
   testImpl "Fine-grained List"   (new :: STM (TListPriorityQueue Int Int))
 
