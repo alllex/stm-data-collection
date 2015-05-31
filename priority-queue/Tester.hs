@@ -156,14 +156,22 @@ prod'n'cons pcount ccount pq vals = do
                              | otherwise = x' : drop1 x xs'
 
 
-prodNconsK :: (Show k, PriorityQueue q k k) => Int -> Int -> STM (q k k) -> [k] -> IO ()
-prodNconsK n k pqcons vals = do
-  printDeepDebug $ ">>> Start Producer/Consumer test with " ++
-                   show n ++ "/" ++ show k ++ " capacities"
+prodNconsK :: (Show k, PriorityQueue q k k) => STM (q k k) -> Int -> Int -> [k] -> IO ()
+prodNconsK pqcons n k vals = do
+  let description = "Producer/Consumer test with " ++
+                    show n ++ "/" ++ show k ++ " capacities" ++
+                    "and " ++ show (length vals) ++ " items"
+  printDebug $ ">>> Start " ++ description
   pq <- at $ pqcons
   prod'n'cons n k pq vals
-  printDeepDebug $ ">>> Finish Producer/Consumer test with " ++
-                   show n ++ "/" ++ show k ++ " capacities"
+  printDebug $ "<<< Finish " ++ description
+
+
+prodNconsKprop :: (Show k, PriorityQueue q k k) => STM (q k k) -> Int -> Int -> [k] -> IO ()
+prodNconsKprop pqcons n k vals =
+  if n > 0 && k > 0
+  then prodNconsK pqcons n k vals
+  else return ()
 
 
 {-   Per implementation test runner   -}
@@ -204,19 +212,22 @@ testImpl base cons = hspec $ do
       property $ addRemEachProp cons
 
     it "run 1 producer and 1 consumer on several items" $ do
-      prodNconsK 1 1 cons [1..5]
+      prodNconsK cons 1 1 [1..5]
 
     it "run 2 producers and 1 consumer on several items" $ do
-      prodNconsK 2 1 cons [1..5]
+      prodNconsK cons 2 1 [1..5]
 
     it "run 1 producer and 2 consumers on several items" $ do
-      prodNconsK 1 2 cons [1..5]
+      prodNconsK cons 1 2 [1..5]
 
     it "run 5 producers and 2 consumers on several items" $ do
-      prodNconsK 5 2 cons [25,24..1]
+      prodNconsK cons 5 2 [25,24..1]
 
     it "run 2 producers and 5 consumers on several items" $ do
-      prodNconsK 2 5 cons [1..25]
+      prodNconsK cons 2 5 [1..25]
+
+    it "property of consumers to consume all produced items" $ do
+      property $ prodNconsKprop cons
 
 
 main :: IO ()
