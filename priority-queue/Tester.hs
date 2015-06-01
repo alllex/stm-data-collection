@@ -81,13 +81,11 @@ addRemEachProp = addRemEach
 
 fork'n'join :: [IO a] -> IO ()
 fork'n'join ios = do
-  children <- newMVar []
-  forM_ ios $ \io -> do
+  children <- forM ios $ \io -> do
     child <- newEmptyMVar
-    modifyMVar_ children $ return . (child:)
     forkFinally io $ \_ -> putMVar child ()
-  children' <- readMVar children
-  forM_ children' $ \child -> do
+    return child
+  forM_ children $ \child -> do
     takeMVar child
 
 
