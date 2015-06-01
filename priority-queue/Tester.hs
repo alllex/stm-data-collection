@@ -33,7 +33,7 @@ at = atomically
 
 {-   Structural checkers and properties   -}
 
-addManyRemOne :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> Int -> IO ()
+addManyRemOne :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> Int -> IO ()
 addManyRemOne _ [] _ = return ()
 addManyRemOne cons vals ans = do
   pq <- at $ cons
@@ -42,12 +42,12 @@ addManyRemOne cons vals ans = do
   x `shouldBe` (ans :: Int)
 
 
-addManyRemOneProp :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> IO ()
+addManyRemOneProp :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
 addManyRemOneProp _ []    = return ()
 addManyRemOneProp cons vs = addManyRemOne cons vs $ head $ sort vs
 
 
-addManyRemAll :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> IO ()
+addManyRemAll :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
 addManyRemAll cons vals = do
   pq <- at $ cons
   forM_ vals $ \x -> at $ insert pq x x
@@ -59,11 +59,7 @@ addManyRemAll cons vals = do
     x `shouldBe` (ans :: Int)
 
 
-addManyRemAllProp :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> IO ()
-addManyRemAllProp = addManyRemAll
-
-
-addRemEach :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> IO ()
+addRemEach :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
 addRemEach cons vals = do
   pq <- at $ cons
   forM_ vals $ \v -> do
@@ -73,9 +69,6 @@ addRemEach cons vals = do
     x <- at $ deleteMin pq
     x `shouldBe` (v :: Int)
 
-
-addRemEachProp :: PriorityQueue q Int Int => STM (q Int Int) -> [Int] -> IO ()
-addRemEachProp = addRemEach
 
 {-   Producer/Consumer checkers and properties   -}
 
@@ -89,7 +82,7 @@ fork'n'join ios = do
     takeMVar child
 
 
-prod'n'cons :: (Show k, PriorityQueue q k k) => Int -> Int -> q k k -> [k] -> IO ()
+prod'n'cons :: (Ord a, Show a, PriorityQueue q a) => Int -> Int -> q a a -> [a] -> IO ()
 prod'n'cons pcount ccount pq vals = do
   prodVals <- newMVar vals
   consVals <- newMVar vals
@@ -150,7 +143,7 @@ prod'n'cons pcount ccount pq vals = do
                 consRole prodVals consVals
 
 
-prodNconsK :: (Show k, PriorityQueue q k k) => STM (q k k) -> Int -> Int -> [k] -> IO ()
+prodNconsK :: (Ord a, Show a, PriorityQueue q a) => STM (q a a) -> Int -> Int -> [a] -> IO ()
 prodNconsK pqcons n k vals = do
   let description = "Producer/Consumer test with " ++
                     show n ++ "/" ++ show k ++ " capacities" ++
@@ -161,7 +154,7 @@ prodNconsK pqcons n k vals = do
   printDebug $ "<<< Finish " ++ description
 
 
-prodNconsKprop :: (Show k, PriorityQueue q k k) => STM (q k k) -> Int -> Int -> [k] -> IO ()
+prodNconsKprop :: (Ord a, Show a, PriorityQueue q a) => STM (q a a) -> Int -> Int -> [a] -> IO ()
 prodNconsKprop pqcons n k vals =
   if n > 0 && k > 0
   then prodNconsK pqcons n k vals
@@ -170,7 +163,7 @@ prodNconsKprop pqcons n k vals =
 
 {-   Per implementation test runner   -}
 
-testImpl :: PriorityQueue q Int Int => String -> STM (q Int Int) -> IO ()
+testImpl :: PriorityQueue q Int => String -> STM (q Int Int) -> IO ()
 testImpl base cons = hspec $ do
 
   describe (base ++ " implementation") $ do
@@ -200,10 +193,10 @@ testImpl base cons = hspec $ do
       property $ addManyRemOneProp cons
 
     it "property of deleting items in sorted order" $ do
-      property $ addManyRemAllProp cons
+      property $ addManyRemAll cons
 
     it "property of one-item queue having this item as minimum" $ do
-      property $ addRemEachProp cons
+      property $ addRemEach cons
 
     it "run 1 producer and 1 consumer on several items" $ do
       prodNconsK cons 1 1 [1..5]

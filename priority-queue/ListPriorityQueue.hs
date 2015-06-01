@@ -47,7 +47,7 @@ lpqTryDeleteMin :: ListPriorityQueue k v -> STM (Maybe v)
 lpqTryDeleteMin lpq = (Just `fmap` lpqDeleteMin lpq) `orElse` return Nothing
 
 
-instance Ord k => PriorityQueue ListPriorityQueue k v where
+instance PriorityQueue ListPriorityQueue v where
     new            = lpqNew
     insert         = lpqInsert
     peekMin        = lpqPeekMin
