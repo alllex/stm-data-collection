@@ -4,18 +4,17 @@ module TListPriorityQueue(
     TListPriorityQueue
 ) where
 
+import Data.Functor((<$>))
 import Control.Concurrent.STM
 import PriorityQueue
 
 data TNode k v = TNil
-               | TCons (TVar (k, v, TNode k v))
+               | TCons k v (TVar (TNode k v))
 
 data TListPriorityQueue k v = TLPQ (TVar (TNode k v))
 
 tlpqNew :: STM (TListPriorityQueue k v)
-tlpqNew = do
-  hd <- newTVar TNil
-  return $ TLPQ hd
+tlpqNew = TLPQ <$> newTVar TNil
 
 
 tlpqInsert :: (Ord k) => TListPriorityQueue k v -> k -> v -> STM ()
@@ -25,19 +24,14 @@ tlpqInsert (TLPQ hd) k v =
         xs' <- push xs
         writeTVar hd xs'
     where
-        push TNil        = do
-          nvar <- newTVar (k, v, TNil)
-          return $ TCons nvar
-        push (TCons var) = do
-          (k', _, next) <- readTVar var
-          if k' <= k
-             then do
-               nnext <- push next
-               modifyTVar var $ \(kk, vv, _) -> (kk, vv, nnext)
-               return $ TCons var
-             else do
-               nvar <- newTVar (k, v, TCons var)
-               return $ TCons nvar
+        push TNil                 = TCons k v <$> newTVar TNil
+        push cur@(TCons k' _ nxt) = do
+          if k' > k then TCons k v <$> newTVar cur
+          else do
+            next <- readTVar nxt
+            nnext <- push next
+            writeTVar nxt $ nnext
+            return cur
 
 
 tlpqPeekMin :: TListPriorityQueue k v -> STM v
@@ -45,24 +39,22 @@ tlpqPeekMin (TLPQ hd) = do
     xs <- readTVar hd
     case xs of
       TNil  -> retry
-      (TCons var) -> do
-        (_, v, _) <- readTVar var
-        return v
+      (TCons _ v _) -> return v
 
 
 tlpqDeleteMin :: TListPriorityQueue k v -> STM v
 tlpqDeleteMin (TLPQ hd) = do
     xs <- readTVar hd
     case xs of
-      TNil  -> retry
-      (TCons var) -> do
-        (_, v, next) <- readTVar var
+      TNil            -> retry
+      (TCons _ v nxt) -> do
+        next <- readTVar nxt
         writeTVar hd next
         return v
 
 
 tlpqTryDeleteMin :: TListPriorityQueue k a -> STM (Maybe a)
-tlpqTryDeleteMin lpq = (Just `fmap` tlpqDeleteMin lpq) `orElse` return Nothing
+tlpqTryDeleteMin lpq = (Just <$> tlpqDeleteMin lpq) `orElse` return Nothing
 
 
 instance PriorityQueue TListPriorityQueue v where
