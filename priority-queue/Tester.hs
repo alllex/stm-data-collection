@@ -7,10 +7,12 @@ import Test.QuickCheck
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
+import Data.List(sort, delete)
+
 import PriorityQueue
 import ListPriorityQueue
 import TListPriorityQueue
-import Data.List(sort, delete)
+import HeapPriorityQueue
 
 {-   Debug setting   -}
 
@@ -222,6 +224,7 @@ main = do
   printDebug "\n{--------------------  NEW TEST SET  --------------------}\n"
   testImpl "Coarse-grained List" (new :: STM (ListPriorityQueue  Int Int))
   testImpl "Fine-grained List"   (new :: STM (TListPriorityQueue Int Int))
+  testImpl "Coarse-grained Heap" (new :: STM (HeapPriorityQueue  Int Int))
 
 
 
