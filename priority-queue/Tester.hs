@@ -24,10 +24,10 @@ deepDebug :: Bool
 deepDebug = False
 
 printDebug :: String -> IO ()
-printDebug msg = if modeDebug || deepDebug then putStrLn msg else return ()
+printDebug msg = when (modeDebug || deepDebug) $ putStrLn msg
 
 printDeepDebug :: String -> IO ()
-printDeepDebug msg = if deepDebug then putStrLn msg else return ()
+printDeepDebug msg = when deepDebug $ putStrLn msg
 
 {-   Helpers   -}
 
