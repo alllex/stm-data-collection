@@ -13,6 +13,7 @@ data TNode k v = TNil
 
 data TListPriorityQueue k v = TLPQ (TVar (TNode k v))
 
+
 tlpqNew :: STM (TListPriorityQueue k v)
 tlpqNew = TLPQ <$> newTVar TNil
 
