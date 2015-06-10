@@ -20,28 +20,21 @@ import THeapPriorityQueue
 modeDebug :: Bool
 modeDebug = False
 
-deepDebug :: Bool
-deepDebug = False
-
 printDebug :: String -> IO ()
-printDebug msg = when (modeDebug || deepDebug) $ putStrLn msg
+printDebug msg = when modeDebug $ putStrLn msg
 
-printDeepDebug :: String -> IO ()
-printDeepDebug msg = when deepDebug $ putStrLn msg
-
-{-   Helpers   -}
-
-at :: STM a -> IO a
-at = atomically
+infixl 3 <%
+(<%) :: a -> (a -> b) -> b
+a <% f = f a
 
 {-   Structural checkers and properties   -}
 
 addManyRemOne :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> Int -> IO ()
 addManyRemOne _ [] _ = return ()
 addManyRemOne cons vals ans = do
-  pq <- at $ cons
-  forM_ vals $ \x -> at $ insert pq x x
-  x <- at $ deleteMin pq
+  pq <- atomically $ cons
+  forM_ vals $ \x -> atomically $ insert pq x x
+  x <- atomically $ deleteMin pq
   x `shouldBe` (ans :: Int)
 
 
@@ -52,24 +45,24 @@ addManyRemOneProp cons vs = addManyRemOne cons vs $ head $ sort vs
 
 addManyRemAll :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
 addManyRemAll cons vals = do
-  pq <- at $ cons
-  forM_ vals $ \x -> at $ insert pq x x
+  pq <- atomically $ cons
+  forM_ vals $ \x -> atomically $ insert pq x x
   let vals' = sort vals
   forM_ vals' $ \ans -> do
-    y <- at $ peekMin pq
+    y <- atomically $ peekMin pq
     y `shouldBe` (ans :: Int)
-    x <- at $ deleteMin pq
+    x <- atomically $ deleteMin pq
     x `shouldBe` (ans :: Int)
 
 
 addRemEach :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
 addRemEach cons vals = do
-  pq <- at $ cons
+  pq <- atomically $ cons
   forM_ vals $ \v -> do
-    at $ insert pq v v
-    y <- at $ peekMin pq
+    atomically $ insert pq v v
+    y <- atomically $ peekMin pq
     y `shouldBe` (v :: Int)
-    x <- at $ deleteMin pq
+    x <- atomically $ deleteMin pq
     x `shouldBe` (v :: Int)
 
 
@@ -99,50 +92,50 @@ prod'n'cons pcount ccount pq vals = do
 
       prodRole prodVals = do
         tid <- myThreadId
-        let nmsg = pmsg $ show tid
-        printDeepDebug $ nmsg "is waiting on values"
+        let dmsg = printDebug . pmsg (show tid)
+        "is waiting on values" <% dmsg
         vs <- takeMVar prodVals
-        printDeepDebug $ nmsg "got values"
+        "got values" <% dmsg
         case vs of
           [] -> do
             putMVar prodVals []
-            printDebug $ nmsg "DONE"
+            "DONE" <% dmsg
           (v:vs') -> do
-            printDeepDebug $ nmsg "puts back rest values"
+            "puts back rest values" <% dmsg
             putMVar prodVals vs'
-            at $ insert pq v v
-            printDebug $ nmsg $ show v
-            printDeepDebug $ nmsg "continues producing"
+            atomically $ insert pq v v
+            "value = " ++ show v <% dmsg
+            "continues producing" <% dmsg
             prodRole prodVals
 
       consRole prodVals consVals = do
         tid <- myThreadId
-        let nmsg = cmsg $ show tid
-        printDeepDebug $ nmsg "is about to consume value"
-        mx <- at $ tryDeleteMin pq
+        let dmsg = printDebug . cmsg (show tid)
+        "is about to consume value" <% dmsg
+        mx <- atomically $ tryDeleteMin pq
         case mx of
           Nothing -> do
             vs <- takeMVar prodVals
             putMVar prodVals vs
-            printDeepDebug $ nmsg "got values"
+            "got values" <% dmsg
             case vs of
               [] -> do
-                printDebug $ nmsg "is starving..."
+                "is starving..." <% dmsg
                 return ()
               _  -> do
                 consRole prodVals consVals
           (Just x) -> do
-            printDeepDebug $ nmsg "is waiting on values"
+            "is waiting on values" <% dmsg
             vs <- takeMVar consVals
             x `shouldSatisfy` (`elem` vs)
-            printDebug $ nmsg $ show x
+            "value = " ++ show x <% dmsg
             case delete x vs of
               [] -> do
                 putMVar consVals []
-                printDebug $ nmsg "DONE"
+                "DONE" <% dmsg
               vs' -> do
                 putMVar consVals vs'
-                printDeepDebug $ nmsg "continues consuming"
+                "continues consuming" <% dmsg
                 consRole prodVals consVals
 
 
@@ -151,10 +144,10 @@ prodNconsK pqcons n k vals = do
   let description = "Producer/Consumer test with " ++
                     show n ++ "/" ++ show k ++ " capacities" ++
                     "and " ++ show (length vals) ++ " items"
-  printDebug $ ">>> Start " ++ description
-  pq <- at $ pqcons
+  ">>> Start " ++ description <% printDebug
+  pq <- atomically $ pqcons
   prod'n'cons n k pq vals
-  printDebug $ "<<< Finish " ++ description
+  "<<< Finish " ++ description <% printDebug
 
 
 prodNconsKprop :: (Ord a, Show a, PriorityQueue q a) => STM (q a a) -> Int -> Int -> [a] -> IO ()
