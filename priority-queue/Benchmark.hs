@@ -110,8 +110,8 @@ singleOp rndKey rndPer insRate q = do
     atomically $ deleteMin q
 
 
-timing :: Int -> Int -> Int -> Int -> IO b -> IO Int
-timing opCount timeout numCap numWork qop = do
+timing :: Int -> Int -> Int -> IO b -> IO Int
+timing opCount numCap numWork qop = do
 
   let perWorker = opCount `div` numWork
       fstWorker = perWorker + (opCount `mod` numWork)
