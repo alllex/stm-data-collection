@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 module ListPriorityQueue(
     ListPriorityQueue
@@ -47,7 +46,7 @@ lpqTryDeleteMin :: ListPriorityQueue k v -> STM (Maybe v)
 lpqTryDeleteMin lpq = (Just `fmap` lpqDeleteMin lpq) `orElse` return Nothing
 
 
-instance PriorityQueue ListPriorityQueue v where
+instance PriorityQueue ListPriorityQueue where
     new            = lpqNew
     insert         = lpqInsert
     peekMin        = lpqPeekMin

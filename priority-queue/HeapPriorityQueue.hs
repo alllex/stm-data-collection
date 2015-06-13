@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 module HeapPriorityQueue(
     HeapPriorityQueue
@@ -74,7 +73,7 @@ dm (HPQ hp) = do
       return v
 
 
-instance PriorityQueue HeapPriorityQueue v where
+instance PriorityQueue HeapPriorityQueue where
     new            = HPQ <$> newTVar Nil
     insert         = \(HPQ hp) k v -> modifyTVar hp $ ins k v
     peekMin        = \(HPQ hp) -> pk <$> readTVar hp >>= maybe retry return

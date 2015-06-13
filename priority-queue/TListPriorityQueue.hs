@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 module TListPriorityQueue(
     TListPriorityQueue
@@ -58,7 +57,7 @@ tlpqTryDeleteMin :: TListPriorityQueue k a -> STM (Maybe a)
 tlpqTryDeleteMin lpq = (Just <$> tlpqDeleteMin lpq) `orElse` return Nothing
 
 
-instance PriorityQueue TListPriorityQueue v where
+instance PriorityQueue TListPriorityQueue where
   new            = tlpqNew
   insert         = tlpqInsert
   peekMin        = tlpqPeekMin

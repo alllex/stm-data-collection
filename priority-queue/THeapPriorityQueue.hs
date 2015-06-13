@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 module THeapPriorityQueue(
     THeapPriorityQueue
@@ -92,7 +91,7 @@ thpqDeleteMin (THPQ hp) = do
       return v
 
 
-instance PriorityQueue THeapPriorityQueue v where
+instance PriorityQueue THeapPriorityQueue where
     new            = THPQ <$> newTVar Nil
     insert         = thpqInsert
     peekMin        = thpqPeekMin

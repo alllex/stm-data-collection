@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
-module PriorityQueueTester where
 
 import Test.Hspec
 import Test.QuickCheck
@@ -29,7 +26,7 @@ a <% f = f a
 
 {-   Structural checkers and properties   -}
 
-addManyRemOne :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> Int -> IO ()
+addManyRemOne :: PriorityQueue q => STM (q Int Int) -> [Int] -> Int -> IO ()
 addManyRemOne _ [] _ = return ()
 addManyRemOne cons vals ans = do
   pq <- atomically $ cons
@@ -38,12 +35,12 @@ addManyRemOne cons vals ans = do
   x `shouldBe` (ans :: Int)
 
 
-addManyRemOneProp :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
+addManyRemOneProp :: PriorityQueue q => STM (q Int Int) -> [Int] -> IO ()
 addManyRemOneProp _ []    = return ()
 addManyRemOneProp cons vs = addManyRemOne cons vs $ head $ sort vs
 
 
-addManyRemAll :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
+addManyRemAll :: PriorityQueue q => STM (q Int Int) -> [Int] -> IO ()
 addManyRemAll cons vals = do
   pq <- atomically $ cons
   forM_ vals $ \x -> atomically $ insert pq x x
@@ -55,7 +52,7 @@ addManyRemAll cons vals = do
     x `shouldBe` (ans :: Int)
 
 
-addRemEach :: PriorityQueue q Int => STM (q Int Int) -> [Int] -> IO ()
+addRemEach :: PriorityQueue q => STM (q Int Int) -> [Int] -> IO ()
 addRemEach cons vals = do
   pq <- atomically $ cons
   forM_ vals $ \v -> do
@@ -78,7 +75,7 @@ fork'n'join ios = do
     takeMVar child
 
 
-prod'n'cons :: (Ord a, Show a, PriorityQueue q a) => Int -> Int -> q a a -> [a] -> IO ()
+prod'n'cons :: (Ord a, Show a, PriorityQueue q) => Int -> Int -> q a a -> [a] -> IO ()
 prod'n'cons pcount ccount pq vals = do
   prodVals <- newMVar vals
   consVals <- newMVar vals
@@ -139,7 +136,7 @@ prod'n'cons pcount ccount pq vals = do
                 consRole prodVals consVals
 
 
-prodNconsK :: (Ord a, Show a, PriorityQueue q a) => STM (q a a) -> Int -> Int -> [a] -> IO ()
+prodNconsK :: (Ord a, Show a, PriorityQueue q) => STM (q a a) -> Int -> Int -> [a] -> IO ()
 prodNconsK pqcons n k vals = do
   let description = "Producer/Consumer test with " ++
                     show n ++ "/" ++ show k ++ " capacities" ++
@@ -150,7 +147,7 @@ prodNconsK pqcons n k vals = do
   "<<< Finish " ++ description <% printDebug
 
 
-prodNconsKprop :: (Ord a, Show a, PriorityQueue q a) => STM (q a a) -> Int -> Int -> [a] -> IO ()
+prodNconsKprop :: (Ord a, Show a, PriorityQueue q) => STM (q a a) -> Int -> Int -> [a] -> IO ()
 prodNconsKprop pqcons n k vals =
   if n > 0 && k > 0
   then prodNconsK pqcons n k vals
@@ -159,7 +156,7 @@ prodNconsKprop pqcons n k vals =
 
 {-   Per implementation test runner   -}
 
-testImpl :: PriorityQueue q Int => String -> STM (q Int Int) -> IO ()
+testImpl :: PriorityQueue q => String -> STM (q Int Int) -> IO ()
 testImpl base cons = hspec $ do
 
   describe (base ++ " implementation") $ do
