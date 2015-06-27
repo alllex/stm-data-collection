@@ -11,6 +11,7 @@ import ListPriorityQueue
 import TListPriorityQueue
 import HeapPriorityQueue
 import THeapPriorityQueue
+import TSkipListPQ
 
 {-   Debug setting   -}
 
@@ -213,10 +214,11 @@ testImpl base cons = hspec $ do
 main :: IO ()
 main = do
   printDebug "\n{--------------------  NEW TEST SET  --------------------}\n"
-  testImpl "Coarse-grained List" (new :: STM (ListPriorityQueue  Int Int))
-  testImpl "Fine-grained List"   (new :: STM (TListPriorityQueue Int Int))
-  testImpl "Coarse-grained Heap" (new :: STM (HeapPriorityQueue  Int Int))
-  testImpl "Fine-grained Heap"   (new :: STM (THeapPriorityQueue Int Int))
+  -- testImpl "Coarse-grained List" (new :: STM (ListPriorityQueue  Int Int))
+  -- testImpl "Fine-grained List"   (new :: STM (TListPriorityQueue Int Int))
+  -- testImpl "Coarse-grained Heap" (new :: STM (HeapPriorityQueue  Int Int))
+  -- testImpl "Fine-grained Heap"   (new :: STM (THeapPriorityQueue Int Int))
+  testImpl "TSkipList" (new :: STM (TSkipListPQ        Int Int))
 
 
 

@@ -8,7 +8,8 @@ import Control.Exception (finally)
 import Control.Concurrent
 import Control.Concurrent.STM
 import System.Random.PCG.Fast (createSystemRandom, uniform)
-
+import System.Timeout
+import Options.Applicative
 import Data.IORef
 
 import PriorityQueue
@@ -16,14 +17,40 @@ import ListPriorityQueue
 import TListPriorityQueue
 import HeapPriorityQueue
 import THeapPriorityQueue
+import TSkipListPQ
 
+{-   Utils   -}
+
+withInfo :: Parser a -> String -> ParserInfo a
+withInfo opts desc = info (helper <*> opts) $ progDesc desc
+
+{-   Data    -}
 
 data BenchmarkCase = Throughput Int -- run period in ms
-                   | Timing Int     -- amount of operations
+                   | Timing Int Int -- amount of operations and abortion timeout
+
+parseTiming :: Parser BenchmarkCase
+parseTiming = Timing
+  <$> (argument auto) (metavar "N")
+  <*> (argument auto) (metavar "TIMELIMIT")
+
+parseThroughput :: Parser BenchmarkCase
+parseThroughput = Throughput <$> (argument auto) (metavar "TIMEOUT")
+
+parseBenchmarkCase :: Parser BenchmarkCase
+parseBenchmarkCase = subparser $
+  command "timing"
+    (parseTiming
+     `withInfo` "Measuring time needed to complete a number of operations"
+    ) <>
+  command "throughput"
+    (parseThroughput
+     `withInfo` "Measuring a number of complete operations before timeout"
+    )
 
 instance Show BenchmarkCase where
   show (Throughput t) = "throughput(" ++ show t ++ "ms)"
-  show (Timing c) = "timing("++ show c ++ "ops)"
+  show (Timing c tl) = "timing("++ show c ++ "ops with " ++ show tl ++ "ms time limit)"
 
 data BenchmarkResult = ThroughputResult Int
                      | TimingResult Int
@@ -34,31 +61,33 @@ instance Show BenchmarkResult where
   show (TimingResult t) = "timing(\t" ++ show t ++ "ms)"
   show (Aborted s) = "aborted(" ++ s ++ ")"
 
-best :: [BenchmarkResult] -> Int
-best [] = error "There's no best result in empty set"
-best ((Aborted _):rs) = best rs
-best ((ThroughputResult r):rs) = fst $ foldl best' (0, r) $ zip [1..] rs where
-  best' acc@(_, bestRes) (i, (ThroughputResult c)) =
-    if c > bestRes then (i, c) else acc
-  best' acc (_, (Aborted _)) = acc
-  best' _ _ = error "Cannot find best in different cases of benchmark!"
-best ((TimingResult r):rs) = fst $ foldl best' (0, r) $ zip [1..] rs where
-  best' acc@(_, bestRes) (i, (TimingResult c)) =
-    if c < bestRes then (i, c) else acc
-  best' acc (_, (Aborted _)) = acc
-  best' _ _ = error "Cannot find best in different cases of benchmark!"
-
+-- does not check consistency of benchmark cases
+best :: [BenchmarkResult] -> Maybe Int
+best brs = foldl fld Nothing brs where
+  fld acc (Aborted _) = acc
+  fld Nothing (TimingResult t) = Just t
+  fld acc@(Just r) (TimingResult t) = if t < r then Just t else acc
+  fld Nothing (ThroughputResult n) = Just n
+  fld acc@(Just r) (ThroughputResult n) = if n > r then Just n else acc
 
 data BenchmarkSetting = BenchmarkSetting {
-          numCapabilities :: Int,
+          numCaps :: Int,
+          numWorkers :: Int,
           initialSize :: Int,
           insertionRate :: Int,
-          numWorkers :: Int,
           benchmarkCase :: BenchmarkCase
 }
 
+benchmarkSetting :: Int -> Int -> Parser BenchmarkSetting
+benchmarkSetting numCap numWork = BenchmarkSetting numCap numWork
+  <$> (option auto)
+    (value 1000 <> long "initial-size" <> short 's' <> help "Initial size")
+  <*> (option auto)
+    (value 50 <> long "insersion-rate" <> short 'r' <> help "Percentage of insertions during one run")
+  <*> parseBenchmarkCase
+
 instance Show BenchmarkSetting where
-  show (BenchmarkSetting numCap initSize insRate numWork bCase) =
+  show (BenchmarkSetting numCap numWork initSize insRate bCase) =
     "Benchmark[" ++
       show numCap ++ " cores, on queue with " ++
       show initSize ++ " items, " ++
@@ -74,11 +103,14 @@ data BenchmarkResults = BenchmarkResults {
 instance Show BenchmarkResults where
   show (BenchmarkResults bs rs) =
     show bs ++ "\n" ++
-    unlines (map show' $ zip [0..] rs)
+    unlines (map show' rs)
    where
-     bestNum = best $ map snd rs
-     show' (i, (name, r)) = name ++ ":\t" ++ show r ++ postfix i
-     postfix i = if i == bestNum then " <---" else ""
+     bestRes = best $ map snd rs
+     show' (name, r) = name ++ ":\t" ++ show r ++ postfix r
+     postfix (TimingResult r) = bestMark r
+     postfix (ThroughputResult r) = bestMark r
+     postfix (Aborted r) = ""
+     bestMark r = if (Just r) == bestRes then " <---" else ""
 
 
 data PQBox = forall q. PriorityQueue q => PQB (String, STM (q Int ()))
@@ -89,8 +121,10 @@ impls =
   , PQB ("TList", new :: STM (TListPriorityQueue Int ()))
   , PQB ("Heap",  new :: STM (HeapPriorityQueue  Int ()))
   , PQB ("THeap", new :: STM (THeapPriorityQueue Int ()))
+  , PQB ("TSkipList", new :: STM (TSkipListPQ Int ()))
   ]
 
+{-   Benchmark internals   -}
 
 fill :: PriorityQueue q => IO Int -> q Int () -> Int -> IO ()
 fill randomInt q n = do
@@ -151,43 +185,39 @@ throughput timeout numCap numWork qop = do
 
 
 benchmark :: BenchmarkSetting -> IO BenchmarkResults
-benchmark bs@(BenchmarkSetting numCap initSize insRate numWork bCase) = do
+benchmark bs@(BenchmarkSetting numCap numWork initSize insRate bCase) = do
   g <- createSystemRandom
   let randomInt = uniform g :: IO Int
       randomPercent = (`mod` 101) `fmap` randomInt
       op :: PriorityQueue q => q Int () -> IO ()
       op = singleOp randomInt randomPercent insRate
-      bench' bencher wrapper =
+      bench (Throughput timeout) =
         forM impls $ \(PQB (implName, create)) -> do
           q <- atomically $ create
           fill randomInt q initSize
-          r <- bencher numCap numWork $ op q
-          return (implName, wrapper r)
-      bench (Throughput timeout) = bench' (throughput timeout) ThroughputResult
-      bench (Timing opCount)     = bench' (timing opCount) TimingResult
+          r <- throughput timeout numCap numWork $ op q
+          return (implName, ThroughputResult r)
+      bench (Timing opCount timelimit) = do
+        forM impls $ \(PQB (implName, create)) -> do
+          res <- timeout (timelimit * 1000) $ do
+            q <- atomically $ create
+            fill randomInt q initSize
+            r <- timing opCount numCap numWork $ op q
+            return (implName, TimingResult r)
+          case res of
+            Nothing -> return $ (,) implName $ Aborted $ ">" ++ show timelimit ++ "ms"
+            Just r -> return r
 
   BenchmarkResults bs `fmap`  bench bCase
 
 
 main :: IO ()
 main = do
-  let bss =
-        [ BenchmarkSetting 1 0 100 4 $ Throughput 500
-        , BenchmarkSetting 2 0 100 8 $ Throughput 500
-        , BenchmarkSetting 4 0 100 20 $ Throughput 500
-        , BenchmarkSetting 1 0 100 4 $ Timing 5000
-        , BenchmarkSetting 2 0 100 8 $ Timing 5000
-        , BenchmarkSetting 4 0 100 20 $ Timing 5000
-        , BenchmarkSetting 1 3000 50 4 $ Throughput 500
-        , BenchmarkSetting 2 3000 50 8 $ Throughput 500
-        , BenchmarkSetting 4 3000 50 20 $ Throughput 500
-        , BenchmarkSetting 1 2000 50 4 $ Timing 5000
-        , BenchmarkSetting 2 2000 50 8 $ Timing 5000
-        , BenchmarkSetting 4 2000 50 20 $ Timing 5000
-        ]
-  forM_ bss $ \bs -> do
-    rs <- benchmark bs
-    print rs
+  numCap <- getNumCapabilities
+  let p = benchmarkSetting numCap numCap `withInfo` "Concurrent Data Structures Benchmark"
+  opts <- execParser p
+  rs <- benchmark opts
+  print rs
 
 
 foreign import ccall unsafe "gettime" getTime :: IO Double
