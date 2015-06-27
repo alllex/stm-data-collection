@@ -61,7 +61,7 @@ countIOUArray :: Int -> IO Int
 countIOUArray = countMArray (newArray (0, 0) 0 :: IO (IOUArray Int Int))
 
 counterMVector :: U.IOVector Int -> IO ()
-counterMVector c = forM_ [1..10000000] $ \_ -> do -- forever $ do
+counterMVector c = forever $ do
   v <- U.unsafeRead c 0
   U.unsafeWrite c 0 $ v+1
 
@@ -75,7 +75,7 @@ countMVector = do
   count zero counterMVector result
 
 counterMByteArr :: IOByteArray -> IO ()
-counterMByteArr c = forM_ [1..10000000] $ \_ -> do -- forever $ do
+counterMByteArr c = forever $ do
   v <- readByteArray c 0 :: IO Int
   writeByteArray c 0 $ v+1
 
