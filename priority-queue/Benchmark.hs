@@ -18,7 +18,8 @@ import ListPriorityQueue
 import TListPriorityQueue
 import HeapPriorityQueue
 import THeapPriorityQueue
-import TSkipListPQ
+import TArraySkipListPQ
+import LinkedSkipListPQ
 
 {-   Utils   -}
 
@@ -122,11 +123,12 @@ data PQBox = forall q. PriorityQueue q => PQB (String, STM (q Int ()))
 
 impls :: [PQBox]
 impls =
-  [ PQB ("List",  new :: STM (ListPriorityQueue  Int ()))
-  , PQB ("TList", new :: STM (TListPriorityQueue Int ()))
-  , PQB ("Heap",  new :: STM (HeapPriorityQueue  Int ()))
-  , PQB ("THeap", new :: STM (THeapPriorityQueue Int ()))
-  , PQB ("TSkipList", new :: STM (TSkipListPQ Int ()))
+  [ PQB ("coarse-list-pq",  new :: STM (ListPriorityQueue  Int ()))
+  , PQB ("fine-list-pq", new :: STM (TListPriorityQueue Int ()))
+  , PQB ("coarse-heap-pq",  new :: STM (HeapPriorityQueue  Int ()))
+  , PQB ("fine-heap-pq", new :: STM (THeapPriorityQueue Int ()))
+  , PQB ("tarray-skiplist-pq", new :: STM (TArraySkipListPQ Int ()))
+  , PQB ("linkedlist-skiplist-pq", new :: STM (LinkedSkipListPQ Int ()))
   ]
 
 {-   Benchmark internals   -}

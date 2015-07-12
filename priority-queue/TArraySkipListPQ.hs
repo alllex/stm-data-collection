@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module TSkipListPQ(
-    TSkipListPQ
+module TArraySkipListPQ(
+    TArraySkipListPQ
 ) where
 
 import Data.Array.MArray
@@ -22,20 +22,20 @@ data Node k v = Nil
               , getNodes :: Nodes k v
               }
 
-data TSkipListPQ k v = PQ
+data TArraySkipListPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
   }
 
 
-pqNew' :: Ord k => Int -> STM (TSkipListPQ k v)
+pqNew' :: Ord k => Int -> STM (TArraySkipListPQ k v)
 pqNew' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar $ height
   return $ PQ headNodes vHeight
 
 
-pqNew :: Ord k => STM (TSkipListPQ k v)
+pqNew :: Ord k => STM (TArraySkipListPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
@@ -47,7 +47,7 @@ chooseLvl h =
     where x = fst $ randomR (0.0, 1.0) (unsafePerformIO newStdGen)
 
 
-pqInsert :: Ord k => TSkipListPQ k v -> k -> v -> STM ()
+pqInsert :: Ord k => TArraySkipListPQ k v -> k -> v -> STM ()
 pqInsert (PQ headNodes vHeight) k v = do
   height <- readTVar vHeight
   prevs <- buildPrevs headNodes height []
@@ -81,7 +81,7 @@ pqInsert (PQ headNodes vHeight) k v = do
         updatePtrs 1 prevs
 
 
-pqPeekMin :: Ord k => TSkipListPQ k v -> STM v
+pqPeekMin :: Ord k => TArraySkipListPQ k v -> STM v
 pqPeekMin (PQ headNodes _) = do
   bottom <- readArray headNodes 1
   case bottom of
@@ -89,7 +89,7 @@ pqPeekMin (PQ headNodes _) = do
     (Node _ vv _) -> readTVar vv
 
 
-pqDeleteMin :: Ord k => TSkipListPQ k v -> STM v
+pqDeleteMin :: Ord k => TArraySkipListPQ k v -> STM v
 pqDeleteMin (PQ headNodes _) = do
   bottom <- readArray headNodes 1
   case bottom of
@@ -100,10 +100,10 @@ pqDeleteMin (PQ headNodes _) = do
       readTVar vv
 
 
-pqTryDeleteMin:: Ord k => TSkipListPQ k v -> STM (Maybe v)
+pqTryDeleteMin:: Ord k => TArraySkipListPQ k v -> STM (Maybe v)
 pqTryDeleteMin pq = (Just `fmap` pqDeleteMin pq) `orElse` return Nothing
 
-instance PriorityQueue TSkipListPQ where
+instance PriorityQueue TArraySkipListPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
