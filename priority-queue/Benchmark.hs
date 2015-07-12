@@ -11,6 +11,7 @@ import System.Random.PCG.Fast (createSystemRandom, uniform)
 import System.Timeout
 import Options.Applicative
 import Data.IORef
+import Data.Maybe (catMaybes)
 
 import PriorityQueue
 import ListPriorityQueue
@@ -52,29 +53,30 @@ instance Show BenchmarkCase where
   show (Throughput t) = "throughput(" ++ show t ++ "ms)"
   show (Timing c tl) = "timing("++ show c ++ "ops with " ++ show tl ++ "ms time limit)"
 
-data BenchmarkResult = ThroughputResult Int
-                     | TimingResult Int
+data BenchmarkResult = ThroughputResult Int Int
+                     | TimingResult Int Int
                      | Aborted String
 
 instance Show BenchmarkResult where
-  show (ThroughputResult c) = "throughput(\t" ++ show c ++ "ops)"
-  show (TimingResult t) = "timing(\t" ++ show t ++ "ms)"
+  show (ThroughputResult c d) = "throughput(\t" ++ show c ++ "+-" ++ show d ++ " ops)"
+  show (TimingResult t d) = "timing(\t" ++ show t ++ "+-" ++ show d ++ "ms)"
   show (Aborted s) = "aborted(" ++ s ++ ")"
 
 -- does not check consistency of benchmark cases
 best :: [BenchmarkResult] -> Maybe Int
 best brs = foldl fld Nothing brs where
   fld acc (Aborted _) = acc
-  fld Nothing (TimingResult t) = Just t
-  fld acc@(Just r) (TimingResult t) = if t < r then Just t else acc
-  fld Nothing (ThroughputResult n) = Just n
-  fld acc@(Just r) (ThroughputResult n) = if n > r then Just n else acc
+  fld Nothing (TimingResult t _) = Just t
+  fld acc@(Just r) (TimingResult t d) = if t < r then Just t else acc
+  fld Nothing (ThroughputResult n _) = Just n
+  fld acc@(Just r) (ThroughputResult n _) = if n > r then Just n else acc
 
 data BenchmarkSetting = BenchmarkSetting {
           numCaps :: Int,
           numWorkers :: Int,
           initialSize :: Int,
           insertionRate :: Int,
+          numRuns :: Int,
           benchmarkCase :: BenchmarkCase
 }
 
@@ -84,15 +86,18 @@ benchmarkSetting numCap numWork = BenchmarkSetting numCap numWork
     (value 1000 <> long "initial-size" <> short 's' <> help "Initial size")
   <*> (option auto)
     (value 50 <> long "insersion-rate" <> short 'r' <> help "Percentage of insertions during one run")
+  <*> (option auto)
+    (value 3 <> long "runs" <> short 'n' <> help "Number of runs for each implementation")
   <*> parseBenchmarkCase
 
 instance Show BenchmarkSetting where
-  show (BenchmarkSetting numCap numWork initSize insRate bCase) =
+  show (BenchmarkSetting numCap numWork initSize insRate numRuns bCase) =
     "Benchmark[" ++
-      show numCap ++ " cores, on queue with " ++
+      show numCap ++ " cores, initially " ++
       show initSize ++ " items, " ++
       show insRate ++ "% insertions, " ++
-      show numWork ++ " workers in " ++
+      show numWork ++ " workers, " ++
+      show numRuns ++ " repeats, " ++
       show bCase ++ "]"
 
 data BenchmarkResults = BenchmarkResults {
@@ -107,8 +112,8 @@ instance Show BenchmarkResults where
    where
      bestRes = best $ map snd rs
      show' (name, r) = name ++ ":\t" ++ show r ++ postfix r
-     postfix (TimingResult r) = bestMark r
-     postfix (ThroughputResult r) = bestMark r
+     postfix (TimingResult r _) = bestMark r
+     postfix (ThroughputResult r _) = bestMark r
      postfix (Aborted r) = ""
      bestMark r = if (Just r) == bestRes then " <---" else ""
 
@@ -170,8 +175,8 @@ timing opCount numCap numWork qop = do
 throughput :: Int -> Int -> Int -> IO a -> IO Int
 throughput timeout numCap numWork qop = do
 
-  c <- newIORef 0
-  (ts, vs) <- fmap unzip . forM [1..numWork] $ \i -> do
+  cs <- replicateM numWork $ newIORef 0
+  (ts, vs) <- fmap unzip . forM (zip cs [1..]) $ \(c, i) -> do
     v <- newEmptyMVar
     let work = forever $ qop >> (modifyIORef' c (+1))
     t <- forkOn (i `mod` numCap) $ finally work (putMVar v ())
@@ -181,34 +186,42 @@ throughput timeout numCap numWork qop = do
   mapM_ killThread ts
   mapM_ takeMVar vs
 
-  readIORef c
+  sum `fmap` mapM readIORef cs
 
 
 benchmark :: BenchmarkSetting -> IO BenchmarkResults
-benchmark bs@(BenchmarkSetting numCap numWork initSize insRate bCase) = do
+benchmark bs@(BenchmarkSetting numCap numWork initSize insRate numRuns bCase) = do
   g <- createSystemRandom
   let randomInt = uniform g :: IO Int
       randomPercent = (`mod` 101) `fmap` randomInt
       op :: PriorityQueue q => q Int () -> IO ()
       op = singleOp randomInt randomPercent insRate
-      bench (Throughput timeout) =
-        forM impls $ \(PQB (implName, create)) -> do
-          q <- atomically $ create
-          fill randomInt q initSize
-          r <- throughput timeout numCap numWork $ op q
-          return (implName, ThroughputResult r)
-      bench (Timing opCount timelimit) = do
-        forM impls $ \(PQB (implName, create)) -> do
-          res <- timeout (timelimit * 1000) $ do
-            q <- atomically $ create
-            fill randomInt q initSize
-            r <- timing opCount numCap numWork $ op q
-            return (implName, TimingResult r)
-          case res of
-            Nothing -> return $ (,) implName $ Aborted $ ">" ++ show timelimit ++ "ms"
-            Just r -> return r
 
-  BenchmarkResults bs `fmap`  bench bCase
+      oneBench qcons bencher = do
+          q <- atomically $ qcons
+          fill randomInt q initSize
+          bencher numCap numWork $ op q
+
+      res2disp rs = (mn + d, d) where
+          (mn, mx) = (minimum rs, maximum rs)
+          d = (mx - mn) `div` 2
+          r = mn + d
+
+      bench (Throughput timeout) =
+        forM impls $ \(PQB (implName, qcons)) -> do
+          let bench' = oneBench qcons $ throughput timeout
+          (r, d) <- res2disp `fmap` replicateM numRuns bench'
+          return (implName, ThroughputResult r d)
+
+      bench (Timing opCount timelimit) = do
+        forM impls $ \(PQB (implName, qcons)) -> do
+          let bench' = timeout (timelimit * 1000) $ oneBench qcons $ timing opCount
+          rs <- catMaybes `fmap` replicateM numRuns bench'
+          case rs of
+            [] -> return $ (,) implName $ Aborted $ ">" ++ show timelimit ++ "ms"
+            _ -> return (implName, uncurry TimingResult $ res2disp rs)
+
+  BenchmarkResults bs `fmap` bench bCase
 
 
 main :: IO ()
