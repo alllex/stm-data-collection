@@ -22,6 +22,8 @@ import TArraySkipListPQ
 import LinkedSkipListPQ
 import TArrayPCGSkipListPQ
 import LinkedPCGSkipListPQ
+import TArrayPCGperThreadSLPQ
+import LinkedPCGperThreadSLPQ
 
 {-   Utils   -}
 
@@ -133,6 +135,8 @@ impls =
   , PQB ("linkedlist-skiplist-pq", new :: STM (LinkedSkipListPQ Int ()))
   , PQB ("tarray-pcg-skiplist-pq", new :: STM (TArrayPCGSkipListPQ Int ()))
   , PQB ("linkedlist-pcg-skiplist-pq", new :: STM (LinkedPCGSkipListPQ Int ()))
+  , PQB ("tarray-pcg-perthread-skiplist-pq", new :: STM (TArrayPCGperThreadSLPQ Int ()))
+  , PQB ("linkedlist-pcg-perthread-skiplist-pq", new :: STM (LinkedPCGperThreadSLPQ Int ()))
   ]
 
 {-   Benchmark internals   -}

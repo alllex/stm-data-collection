@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module LinkedPCGSkipListPQ(
-  LinkedPCGSkipListPQ
+module LinkedPCGperThreadSLPQ(
+  LinkedPCGperThreadSLPQ
 ) where
 
 import Control.Monad.STM
@@ -9,6 +9,8 @@ import Control.Monad
 import Control.Concurrent.STM
 import System.IO.Unsafe
 import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
+import Data.Array.MArray
+import Control.Concurrent
 
 import PriorityQueue
 
@@ -36,13 +38,13 @@ type TNode k v = TVar (Node k v)
   The first layout is the main layout that is never deleted
   and used for data access and control.
 -}
-data LinkedPCGSkipListPQ k v
+data LinkedPCGperThreadSLPQ k v
   = PQ
   { getTop       :: TNode k v  -- top-node of the main layout
   , getBottom    :: TNode k v  -- bottom-node of the main layout
   , getHeight    :: TVar Int   -- height of the main layout
   , getNil       :: TNode k v  -- pointer to Nil shared by all nodes
-  , getGenIO     :: TVar GenIO -- RNG
+  , getGenIO     :: TArray Int GenIO -- RNG
   }
 
 
@@ -62,16 +64,17 @@ buildHeads up' h = do
   writeTVar curr' $ Node undefined undefined up' next' down'
   return (curr', bottom')
 
-pqNew' :: Ord k => Int -> STM (LinkedPCGSkipListPQ k v)
+pqNew' :: Ord k => Int -> STM (LinkedPCGperThreadSLPQ k v)
 pqNew' height = do
   nil' <- newTVar Nil
   (top', bottom') <- buildHeads nil' height
   height' <- newTVar height
-  gio' <- newTVar $ unsafePerformIO createSystemRandom
-  return $ PQ top' bottom' height' nil' gio'
+  let cn = unsafePerformIO getNumCapabilities
+  gios' <- newArray (1, cn) $ unsafePerformIO createSystemRandom
+  return $ PQ top' bottom' height' nil' gios'
 
 
-pqNew :: Ord k => STM (LinkedPCGSkipListPQ k v)
+pqNew :: Ord k => STM (LinkedPCGperThreadSLPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
@@ -82,8 +85,8 @@ chooseLvl g h =
   min h $ 1 + truncate (log x / logHalf)
     where x = unsafePerformIO (uniform g :: IO Float)
 
-pqInsert :: Ord k => LinkedPCGSkipListPQ k v -> k -> v -> STM ()
-pqInsert (PQ top' _ height' nil' gio') k v = do
+pqInsert :: Ord k => LinkedPCGperThreadSLPQ k v -> k -> v -> STM ()
+pqInsert (PQ top' _ height' nil' gios') k v = do
   top <- readTVar top'
   case top of
     Nil -> error "Illegal state: top must not be Nil"
@@ -91,7 +94,11 @@ pqInsert (PQ top' _ height' nil' gio') k v = do
       prevs <- buildPrevs top' []
       height <- readTVar height'
       v' <- newTVar v
-      gio <- readTVar gio'
+      let getCapNum = do
+            tid <- myThreadId
+            fst `fmap` threadCapability tid
+          cn = 1 + unsafePerformIO getCapNum
+      gio <- readArray gios' cn
       let lvl = chooseLvl gio height
       insertNode v' nil' prevs lvl
   where
@@ -123,7 +130,7 @@ pqInsert (PQ top' _ height' nil' gio') k v = do
       insertNode v' curr' prevs (h-1)
     insertNode _ _ [] _ = error "Illegal state: main layout must be not lower than new column"
 
-pqPeekMin :: Ord k => LinkedPCGSkipListPQ k v -> STM v
+pqPeekMin :: Ord k => LinkedPCGperThreadSLPQ k v -> STM v
 pqPeekMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
   case bottom of
@@ -135,7 +142,7 @@ pqPeekMin (PQ _ bottom' _ _ _) = do
         (Node _ v' _ _ _) -> readTVar v'
 
 
-pqDeleteMin :: Ord k => LinkedPCGSkipListPQ k v -> STM v
+pqDeleteMin :: Ord k => LinkedPCGperThreadSLPQ k v -> STM v
 pqDeleteMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
   case bottom of
@@ -158,10 +165,10 @@ pqDeleteMin (PQ _ bottom' _ _ _) = do
                  recDel headUp up
 
 
-pqTryDeleteMin:: Ord k => LinkedPCGSkipListPQ k v -> STM (Maybe v)
+pqTryDeleteMin:: Ord k => LinkedPCGperThreadSLPQ k v -> STM (Maybe v)
 pqTryDeleteMin pq = (Just `fmap` pqDeleteMin pq) `orElse` return Nothing
 
-instance PriorityQueue LinkedPCGSkipListPQ where
+instance PriorityQueue LinkedPCGperThreadSLPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
