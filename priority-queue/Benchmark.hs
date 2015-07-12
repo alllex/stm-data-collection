@@ -20,6 +20,8 @@ import HeapPriorityQueue
 import THeapPriorityQueue
 import TArraySkipListPQ
 import LinkedSkipListPQ
+import TArrayPCGSkipListPQ
+import LinkedPCGSkipListPQ
 
 {-   Utils   -}
 
@@ -129,6 +131,8 @@ impls =
   , PQB ("fine-heap-pq", new :: STM (THeapPriorityQueue Int ()))
   , PQB ("tarray-skiplist-pq", new :: STM (TArraySkipListPQ Int ()))
   , PQB ("linkedlist-skiplist-pq", new :: STM (LinkedSkipListPQ Int ()))
+  , PQB ("tarray-pcg-skiplist-pq", new :: STM (TArrayPCGSkipListPQ Int ()))
+  , PQB ("linkedlist-pcg-skiplist-pq", new :: STM (LinkedPCGSkipListPQ Int ()))
   ]
 
 {-   Benchmark internals   -}

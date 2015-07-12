@@ -13,6 +13,8 @@ import HeapPriorityQueue
 import THeapPriorityQueue
 import TArraySkipListPQ
 import LinkedSkipListPQ
+import TArrayPCGSkipListPQ
+import LinkedPCGSkipListPQ
 
 {-   Debug setting   -}
 
@@ -220,7 +222,9 @@ main = do
   -- testImpl "Coarse-grained Heap" (new :: STM (HeapPriorityQueue  Int Int))
   -- testImpl "Fine-grained Heap"   (new :: STM (THeapPriorityQueue Int Int))
   -- testImpl "tarray-skiplist-pq" (new :: STM (TArraySkipListPQ Int Int))
-  testImpl "linkedlist-skiplist-pq" (new :: STM (LinkedSkipListPQ Int Int))
+  -- testImpl "linkedlist-skiplist-pq" (new :: STM (LinkedSkipListPQ Int Int))
+  testImpl "tarray-pcg-skiplist-pq" (new :: STM (TArrayPCGSkipListPQ Int Int))
+  testImpl "linkedlist-pcg-skiplist-pq" (new :: STM (LinkedPCGSkipListPQ Int Int))
 
 
 
