@@ -53,7 +53,6 @@ pqInsert (PQ headNodes vHeight) k v = do
   prevs <- buildPrevs headNodes height []
   insertNode (chooseLvl height) prevs
     where
-      -- buildPrevs :: Nodes k v -> Int -> [Nodes k v]
       buildPrevs _ 0 prevs = return prevs
       buildPrevs nodes lvl prevs = do
         next <- readArray nodes lvl
@@ -63,20 +62,17 @@ pqInsert (PQ headNodes vHeight) k v = do
             if k' > k then buildPrevs nodes (lvl-1) (nodes:prevs)
             else buildPrevs nodes' lvl prevs
 
-      -- insertNode :: Int -> [Nodes k v]
       insertNode nodesHeight prevs = do
         nodes <- newArray_ (1, nodesHeight)
         vv <- newTVar v
         let newNode = Node k vv nodes
-            -- updatePtrs :: Int -> [Nodes k v]
-            updatePtrs lvl (p:ps) =
-              if lvl > nodesHeight then return ()
-              else do
+            updatePtrs lvl _ | lvl > nodesHeight = return ()
+            updatePtrs lvl (p:ps) = do
                 nextNode <- readArray p lvl
                 writeArray p lvl newNode
                 writeArray nodes lvl nextNode
                 updatePtrs (lvl+1) ps
-            updatePtrs _ [] = error "TSkipList: head-nodes height not less than height of new node"
+            updatePtrs _ [] = error "TArraySkipListPQ: main layout must not be lower than new one"
 
         updatePtrs 1 prevs
 
