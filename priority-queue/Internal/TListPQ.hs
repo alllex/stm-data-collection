@@ -1,6 +1,6 @@
 
-module TListPriorityQueue(
-    TListPriorityQueue
+module Internal.TListPQ(
+    TListPQ
 ) where
 
 import Data.Functor((<$>))
@@ -10,14 +10,14 @@ import PriorityQueue
 data TNode k v = TNil
                | TCons k v (TVar (TNode k v))
 
-data TListPriorityQueue k v = TLPQ (TVar (TNode k v))
+data TListPQ k v = TLPQ (TVar (TNode k v))
 
 
-tlpqNew :: STM (TListPriorityQueue k v)
+tlpqNew :: STM (TListPQ k v)
 tlpqNew = TLPQ <$> newTVar TNil
 
 
-tlpqInsert :: (Ord k) => TListPriorityQueue k v -> k -> v -> STM ()
+tlpqInsert :: (Ord k) => TListPQ k v -> k -> v -> STM ()
 tlpqInsert (TLPQ hd) k v =
     do
         xs <- readTVar hd
@@ -34,7 +34,7 @@ tlpqInsert (TLPQ hd) k v =
             return cur
 
 
-tlpqPeekMin :: TListPriorityQueue k v -> STM v
+tlpqPeekMin :: TListPQ k v -> STM v
 tlpqPeekMin (TLPQ hd) = do
     xs <- readTVar hd
     case xs of
@@ -42,7 +42,7 @@ tlpqPeekMin (TLPQ hd) = do
       (TCons _ v _) -> return v
 
 
-tlpqDeleteMin :: TListPriorityQueue k v -> STM v
+tlpqDeleteMin :: TListPQ k v -> STM v
 tlpqDeleteMin (TLPQ hd) = do
     xs <- readTVar hd
     case xs of
@@ -53,11 +53,11 @@ tlpqDeleteMin (TLPQ hd) = do
         return v
 
 
-tlpqTryDeleteMin :: TListPriorityQueue k a -> STM (Maybe a)
+tlpqTryDeleteMin :: TListPQ k a -> STM (Maybe a)
 tlpqTryDeleteMin lpq = (Just <$> tlpqDeleteMin lpq) `orElse` return Nothing
 
 
-instance PriorityQueue TListPriorityQueue where
+instance PriorityQueue TListPQ where
   new            = tlpqNew
   insert         = tlpqInsert
   peekMin        = tlpqPeekMin

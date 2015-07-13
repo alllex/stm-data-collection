@@ -9,4 +9,5 @@ class PriorityQueue q where
     peekMin      :: (Ord k) => q k v -> STM v
     deleteMin    :: (Ord k) => q k v -> STM v
     tryDeleteMin :: (Ord k) => q k v -> STM (Maybe v)
+    tryDeleteMin pq = (Just `fmap` deleteMin pq) `orElse` return Nothing
 

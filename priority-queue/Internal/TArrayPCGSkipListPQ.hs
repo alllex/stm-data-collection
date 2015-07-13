@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module TArrayPCGSkipListPQ(
+module Internal.TArrayPCGSkipListPQ(
     TArrayPCGSkipListPQ
 ) where
 

@@ -14,16 +14,16 @@ import Data.IORef
 import Data.Maybe (catMaybes)
 
 import PriorityQueue
-import ListPriorityQueue
-import TListPriorityQueue
-import HeapPriorityQueue
-import THeapPriorityQueue
-import TArraySkipListPQ
-import LinkedSkipListPQ
-import TArrayPCGSkipListPQ
-import LinkedPCGSkipListPQ
-import TArrayPCGperThreadSLPQ
-import LinkedPCGperThreadSLPQ
+import Internal.ListPQ
+import Internal.TListPQ
+import Internal.HeapPriorityQueue
+import Internal.THeapPriorityQueue
+import Internal.TArraySkipListPQ
+import Internal.LinkedSkipListPQ
+import Internal.TArrayPCGSkipListPQ
+import Internal.LinkedPCGSkipListPQ
+import Internal.TArrayPCGperThreadSLPQ
+import Internal.LinkedPCGperThreadSLPQ
 
 {-   Utils   -}
 
@@ -82,6 +82,7 @@ data BenchmarkSetting = BenchmarkSetting {
           initialSize :: Int,
           insertionRate :: Int,
           numRuns :: Int,
+          implNames :: String,
           benchmarkCase :: BenchmarkCase
 }
 
@@ -93,10 +94,12 @@ benchmarkSetting numCap numWork = BenchmarkSetting numCap numWork
     (value 50 <> long "insersion-rate" <> short 'r' <> help "Percentage of insertions during one run")
   <*> (option auto)
     (value 3 <> long "runs" <> short 'n' <> help "Number of runs for each implementation")
+  <*> strOption
+    (value (unwords allImplNames) <> long "impls" <> short 'i' <> help "Implementations to benchmark divided by spaces")
   <*> parseBenchmarkCase
 
 instance Show BenchmarkSetting where
-  show (BenchmarkSetting numCap numWork initSize insRate numRuns bCase) =
+  show (BenchmarkSetting numCap numWork initSize insRate numRuns _ bCase) =
     "Benchmark[" ++
       show numCap ++ " cores, initially " ++
       show initSize ++ " items, " ++
@@ -127,8 +130,8 @@ data PQBox = forall q. PriorityQueue q => PQB (String, STM (q Int ()))
 
 impls :: [PQBox]
 impls =
-  [ PQB ("coarse-list-pq",  new :: STM (ListPriorityQueue  Int ()))
-  , PQB ("fine-list-pq", new :: STM (TListPriorityQueue Int ()))
+  [ PQB ("coarse-list-pq",  new :: STM (ListPQ Int ()))
+  , PQB ("fine-list-pq", new :: STM (TListPQ Int ()))
   , PQB ("coarse-heap-pq",  new :: STM (HeapPriorityQueue  Int ()))
   , PQB ("fine-heap-pq", new :: STM (THeapPriorityQueue Int ()))
   , PQB ("tarray-skiplist-pq", new :: STM (TArraySkipListPQ Int ()))
@@ -138,6 +141,9 @@ impls =
   , PQB ("tarray-pcg-perthread-skiplist-pq", new :: STM (TArrayPCGperThreadSLPQ Int ()))
   , PQB ("linkedlist-pcg-perthread-skiplist-pq", new :: STM (LinkedPCGperThreadSLPQ Int ()))
   ]
+
+allImplNames :: [String]
+allImplNames = map (\(PQB (name, _)) -> name) impls
 
 {-   Benchmark internals   -}
 
@@ -200,10 +206,14 @@ throughput timeout numCap numWork qop = do
 
 
 benchmark :: BenchmarkSetting -> IO BenchmarkResults
-benchmark bs@(BenchmarkSetting numCap numWork initSize insRate numRuns bCase) = do
+benchmark bs@(BenchmarkSetting numCap numWork initSize insRate numRuns implNames bCase) = do
   g <- createSystemRandom
   let randomInt = uniform g :: IO Int
       randomPercent = (`mod` 101) `fmap` randomInt
+
+      implList = words implNames
+      implsToBench = filter (\(PQB (name, _)) -> name `elem` implList) impls
+
       op :: PriorityQueue q => q Int () -> IO ()
       op = singleOp randomInt randomPercent insRate
 
@@ -218,13 +228,13 @@ benchmark bs@(BenchmarkSetting numCap numWork initSize insRate numRuns bCase) = 
           r = mn + d
 
       bench (Throughput timeout) =
-        forM impls $ \(PQB (implName, qcons)) -> do
+        forM implsToBench $ \(PQB (implName, qcons)) -> do
           let bench' = oneBench qcons $ throughput timeout
           (r, d) <- res2disp `fmap` replicateM numRuns bench'
           return (implName, ThroughputResult r d)
 
       bench (Timing opCount timelimit) = do
-        forM impls $ \(PQB (implName, qcons)) -> do
+        forM implsToBench $ \(PQB (implName, qcons)) -> do
           let bench' = timeout (timelimit * 1000) $ oneBench qcons $ timing opCount
           rs <- catMaybes `fmap` replicateM numRuns bench'
           case rs of

@@ -1,5 +1,5 @@
 
-module THeapPriorityQueue(
+module Internal.THeapPriorityQueue(
     THeapPriorityQueue
 ) where
 

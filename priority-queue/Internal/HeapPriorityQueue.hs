@@ -1,5 +1,5 @@
 
-module HeapPriorityQueue(
+module Internal.HeapPriorityQueue(
     HeapPriorityQueue
 ) where
 
