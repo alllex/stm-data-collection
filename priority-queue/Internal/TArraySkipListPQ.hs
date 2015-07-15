@@ -96,13 +96,9 @@ pqDeleteMin (PQ headNodes _) = do
       readTVar vv
 
 
-pqTryDeleteMin:: Ord k => TArraySkipListPQ k v -> STM (Maybe v)
-pqTryDeleteMin pq = (Just `fmap` pqDeleteMin pq) `orElse` return Nothing
-
 instance PriorityQueue TArraySkipListPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
     deleteMin      = pqDeleteMin
-    tryDeleteMin   = pqTryDeleteMin
 

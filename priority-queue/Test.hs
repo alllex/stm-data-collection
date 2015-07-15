@@ -9,8 +9,8 @@ import Data.List(sort, delete)
 import PriorityQueue
 import Internal.ListPQ
 import Internal.TListPQ
-import Internal.HeapPriorityQueue
-import Internal.THeapPriorityQueue
+import Internal.HeapPQ
+import Internal.THeapPQ
 import Internal.TArraySkipListPQ
 import Internal.LinkedSkipListPQ
 import Internal.TArrayPCGSkipListPQ
@@ -218,18 +218,7 @@ testImpl base cons = hspec $ do
 
 main :: IO ()
 main = do
-  printDebug "\n{--------------------  NEW TEST SET  --------------------}\n"
   testImpl "Coarse-grained List" (new :: STM (ListPQ  Int Int))
-  -- testImpl "Fine-grained List"   (new :: STM (TListPQ Int Int))
-  -- testImpl "Coarse-grained Heap" (new :: STM (HeapPriorityQueue  Int Int))
-  -- testImpl "Fine-grained Heap"   (new :: STM (THeapPriorityQueue Int Int))
-  -- testImpl "tarray-skiplist-pq" (new :: STM (TArraySkipListPQ Int Int))
-  -- testImpl "linkedlist-skiplist-pq" (new :: STM (LinkedSkipListPQ Int Int))
-  -- testImpl "tarray-pcg-skiplist-pq" (new :: STM (TArrayPCGSkipListPQ Int Int))
-  -- testImpl "linkedlist-pcg-skiplist-pq" (new :: STM (LinkedPCGSkipListPQ Int Int))
-  -- testImpl "tarray-pcg-perthread-skiplist-pq" (new :: STM (TArrayPCGperThreadSLPQ Int Int))
-  -- testImpl "linkedlist-pcg-perthread-skiplist-pq" (new :: STM (LinkedPCGperThreadSLPQ Int Int))
-
 
 
 

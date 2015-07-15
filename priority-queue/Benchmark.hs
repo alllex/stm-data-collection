@@ -1,4 +1,3 @@
-
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
@@ -16,8 +15,8 @@ import Data.Maybe (catMaybes)
 import PriorityQueue
 import Internal.ListPQ
 import Internal.TListPQ
-import Internal.HeapPriorityQueue
-import Internal.THeapPriorityQueue
+import Internal.HeapPQ
+import Internal.THeapPQ
 import Internal.TArraySkipListPQ
 import Internal.LinkedSkipListPQ
 import Internal.TArrayPCGSkipListPQ
@@ -132,8 +131,8 @@ impls :: [PQBox]
 impls =
   [ PQB ("coarse-list-pq",  new :: STM (ListPQ Int ()))
   , PQB ("fine-list-pq", new :: STM (TListPQ Int ()))
-  , PQB ("coarse-heap-pq",  new :: STM (HeapPriorityQueue  Int ()))
-  , PQB ("fine-heap-pq", new :: STM (THeapPriorityQueue Int ()))
+  , PQB ("coarse-heap-pq",  new :: STM (HeapPQ Int ()))
+  , PQB ("fine-heap-pq", new :: STM (THeapPQ Int ()))
   , PQB ("tarray-skiplist-pq", new :: STM (TArraySkipListPQ Int ()))
   , PQB ("linkedlist-skiplist-pq", new :: STM (LinkedSkipListPQ Int ()))
   , PQB ("tarray-pcg-skiplist-pq", new :: STM (TArrayPCGSkipListPQ Int ()))

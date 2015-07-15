@@ -105,13 +105,9 @@ pqDeleteMin (PQ headNodes _ _) = do
       readTVar vv
 
 
-pqTryDeleteMin:: Ord k => TArrayPCGperThreadSLPQ k v -> STM (Maybe v)
-pqTryDeleteMin pq = (Just `fmap` pqDeleteMin pq) `orElse` return Nothing
-
 instance PriorityQueue TArrayPCGperThreadSLPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
     deleteMin      = pqDeleteMin
-    tryDeleteMin   = pqTryDeleteMin
 

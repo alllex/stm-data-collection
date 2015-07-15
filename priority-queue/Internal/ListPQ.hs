@@ -42,10 +42,6 @@ pqDeleteMin (PQ xsv) = do
         return v
 
 
--- pqTryDeleteMin :: ListPQ k v -> STM (Maybe v)
--- pqTryDeleteMin pq = (Just `fmap` pqDeleteMin pq) `orElse` return Nothing
-
-
 instance PriorityQueue ListPQ where
     new            = pqNew
     insert         = pqInsert

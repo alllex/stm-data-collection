@@ -4,7 +4,7 @@
 ghc -o Benchmark Benchmark.hs gettime.c -O2 -rtsopts -fno-omit-yields
 if [ $? -eq 0 ]; then
   echo OK
-  ./Benchmark timing 4900 1000 -s 5000 -r 0 -n 10 -i "coarse-list-pq"
+  ./Benchmark timing 1000 100 -s 1000 -r 50 -n 1 -i "coarse-list-pq"
   # TIMELIMIT=50
   # INITSIZE=2000
   # REPEATS=10

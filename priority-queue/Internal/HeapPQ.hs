@@ -1,9 +1,8 @@
 
-module Internal.HeapPriorityQueue(
-    HeapPriorityQueue
+module Internal.HeapPQ(
+    HeapPQ
 ) where
 
-import Data.Functor((<$>))
 import Control.Concurrent.STM
 import PriorityQueue
 
@@ -17,7 +16,7 @@ data Heap k v = Nil
                      !(Heap k v)         -- right
 
 
-data HeapPriorityQueue k v = HPQ (TVar (Heap k v))
+data HeapPQ k v = PQ (TVar (Heap k v))
 
 
 empty :: Heap k v
@@ -63,8 +62,8 @@ rm Nil = Nothing
 rm (Node _ _ _ v l r) = Just (v, l `union` r)
 
 
-dm :: Ord k => HeapPriorityQueue k b -> STM b
-dm (HPQ hp) = do
+dm :: Ord k => HeapPQ k b -> STM b
+dm (PQ hp) = do
   h <- readTVar hp
   case rm h of
     Nothing -> retry
@@ -73,12 +72,11 @@ dm (HPQ hp) = do
       return v
 
 
-instance PriorityQueue HeapPriorityQueue where
-    new            = HPQ <$> newTVar Nil
-    insert         = \(HPQ hp) k v -> modifyTVar hp $ ins k v
-    peekMin        = \(HPQ hp) -> pk <$> readTVar hp >>= maybe retry return
+instance PriorityQueue HeapPQ where
+    new            = PQ `fmap` newTVar Nil
+    insert         = \(PQ hp) k v -> modifyTVar hp $ ins k v
+    peekMin        = \(PQ hp) -> pk `fmap` readTVar hp >>= maybe retry return
     deleteMin      = dm
-    tryDeleteMin   = \hhp -> (Just <$> deleteMin hhp) `orElse` return Nothing
 
 
 

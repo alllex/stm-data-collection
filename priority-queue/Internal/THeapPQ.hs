@@ -1,6 +1,6 @@
 
-module Internal.THeapPriorityQueue(
-    THeapPriorityQueue
+module Internal.THeapPQ(
+    THeapPQ
 ) where
 
 import Data.Functor((<$>))
@@ -17,7 +17,7 @@ data Heap k v = Nil
                      (TVar (Heap k v))
 
 
-data THeapPriorityQueue k v = THPQ (TVar (Heap k v))
+data THeapPQ k v = PQ (TVar (Heap k v))
 
 
 rank :: Heap k v -> Int
@@ -53,7 +53,7 @@ mk k v vh1 vh2 = do
   h1 <- readTVar vh1
   h2 <- readTVar vh2
   let (r1, r2) = both ((+1).rank) (h1, h2)
-  let ss = size h1 + size h2 + 1 -- uncurry ((.)(.)(.)(+1)(+)) $ both size (h1, h2)
+  let ss = size h1 + size h2 + 1 
   return $ if r1 > r2
     then Node r1 ss k v vh1 vh2
     else Node r2 ss k v vh2 vh1
@@ -61,8 +61,8 @@ mk k v vh1 vh2 = do
     both f (a, b) = (f a, f b)
 
 
-thpqInsert :: Ord k => THeapPriorityQueue k v -> k -> v -> STM ()
-thpqInsert (THPQ hp) k v = do
+pqInsert :: Ord k => THeapPQ k v -> k -> v -> STM ()
+pqInsert (PQ hp) k v = do
   h <- readTVar hp
   l <- newTVar Nil
   r <- newTVar Nil
@@ -70,16 +70,16 @@ thpqInsert (THPQ hp) k v = do
   writeTVar hp h'
 
 
-thpqPeekMin :: Ord k => THeapPriorityQueue k v -> STM v
-thpqPeekMin (THPQ hp) = do
+pqPeekMin :: Ord k => THeapPQ k v -> STM v
+pqPeekMin (PQ hp) = do
   h <- readTVar hp
   case h of
     Nil                -> retry
     (Node _ _ _ v _ _) -> return v
 
 
-thpqDeleteMin :: Ord k => THeapPriorityQueue k b -> STM b
-thpqDeleteMin (THPQ hp) = do
+pqDeleteMin :: Ord k => THeapPQ k b -> STM b
+pqDeleteMin (PQ hp) = do
   h <- readTVar hp
   case h of
     Nil                  -> retry
@@ -91,12 +91,11 @@ thpqDeleteMin (THPQ hp) = do
       return v
 
 
-instance PriorityQueue THeapPriorityQueue where
-    new            = THPQ <$> newTVar Nil
-    insert         = thpqInsert
-    peekMin        = thpqPeekMin
-    deleteMin      = thpqDeleteMin
-    tryDeleteMin   = \hhp -> (Just <$> deleteMin hhp) `orElse` return Nothing
+instance PriorityQueue THeapPQ where
+    new            = PQ <$> newTVar Nil
+    insert         = pqInsert
+    peekMin        = pqPeekMin
+    deleteMin      = pqDeleteMin
 
 
 

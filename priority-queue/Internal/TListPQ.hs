@@ -10,15 +10,15 @@ import PriorityQueue
 data TNode k v = TNil
                | TCons k v (TVar (TNode k v))
 
-data TListPQ k v = TLPQ (TVar (TNode k v))
+data TListPQ k v = PQ (TVar (TNode k v))
 
 
-tlpqNew :: STM (TListPQ k v)
-tlpqNew = TLPQ <$> newTVar TNil
+pqNew :: STM (TListPQ k v)
+pqNew = PQ <$> newTVar TNil
 
 
-tlpqInsert :: (Ord k) => TListPQ k v -> k -> v -> STM ()
-tlpqInsert (TLPQ hd) k v =
+pqInsert :: (Ord k) => TListPQ k v -> k -> v -> STM ()
+pqInsert (PQ hd) k v =
     do
         xs <- readTVar hd
         xs' <- push xs
@@ -34,16 +34,16 @@ tlpqInsert (TLPQ hd) k v =
             return cur
 
 
-tlpqPeekMin :: TListPQ k v -> STM v
-tlpqPeekMin (TLPQ hd) = do
+pqPeekMin :: TListPQ k v -> STM v
+pqPeekMin (PQ hd) = do
     xs <- readTVar hd
     case xs of
       TNil  -> retry
       (TCons _ v _) -> return v
 
 
-tlpqDeleteMin :: TListPQ k v -> STM v
-tlpqDeleteMin (TLPQ hd) = do
+pqDeleteMin :: TListPQ k v -> STM v
+pqDeleteMin (PQ hd) = do
     xs <- readTVar hd
     case xs of
       TNil            -> retry
@@ -53,15 +53,10 @@ tlpqDeleteMin (TLPQ hd) = do
         return v
 
 
-tlpqTryDeleteMin :: TListPQ k a -> STM (Maybe a)
-tlpqTryDeleteMin lpq = (Just <$> tlpqDeleteMin lpq) `orElse` return Nothing
-
-
 instance PriorityQueue TListPQ where
-  new            = tlpqNew
-  insert         = tlpqInsert
-  peekMin        = tlpqPeekMin
-  deleteMin      = tlpqDeleteMin
-  tryDeleteMin   = tlpqTryDeleteMin
+  new            = pqNew
+  insert         = pqInsert
+  peekMin        = pqPeekMin
+  deleteMin      = pqDeleteMin
 
 

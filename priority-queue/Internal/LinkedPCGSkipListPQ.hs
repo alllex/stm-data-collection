@@ -158,15 +158,11 @@ pqDeleteMin (PQ _ bottom' _ _ _) = do
                  recDel headUp up
 
 
-pqTryDeleteMin:: Ord k => LinkedPCGSkipListPQ k v -> STM (Maybe v)
-pqTryDeleteMin pq = (Just `fmap` pqDeleteMin pq) `orElse` return Nothing
-
 instance PriorityQueue LinkedPCGSkipListPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
     deleteMin      = pqDeleteMin
-    tryDeleteMin   = pqTryDeleteMin
 
 
 
