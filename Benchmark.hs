@@ -44,13 +44,14 @@ timing abort !opCount !numCap !numWork op = do
       work _ = work' perWorker
       wi = [1..numWork]
 
-  (wis, vs) <- fmap unzip . forM wi $ \i -> do
+  (cws, vs) <- fmap unzip . forM wi $ \i -> do
     v <- newEmptyMVar
-    return ((i, work i >> putMVar v ()), v)
+    return ((i `mod` numCap, work i >> putMVar v ()), v)
 
+  performMajorGC
   startTime <- getTime
   tle <- abort $ do
-    forM_ wis $ \(i, w) -> forkOn (i `mod` numCap) w
+    forM_ cws $ uncurry forkOn
     mapM_ takeMVar vs
   stopTime <- getTime
 
@@ -67,12 +68,17 @@ throughput
 throughput !period !numCap !numWork qop = do
 
   cs <- replicateM numWork $ newIORef 0
-  (ts, vs) <- fmap unzip . forM (zip cs [0..numWork]) $ \(c, i) -> do
+  (cws, vs) <- fmap unzip . forM (zip cs [0..numWork]) $ \(c, i) -> do
     v <- newEmptyMVar
     let work = forever $ qop >> modifyIORef' c (+1)
-    t <- forkOn (i `mod` numCap) $ finally work (putMVar v ())
-    return (t, v)
+        wrappedWork = finally work (putMVar v ())
+        cap = i `mod` numCap
+    return ((cap, wrappedWork), v)
 
+  performMajorGC
+  traceMarkerIO "Right before throughput benchark start"
+
+  ts <- forM cws $ uncurry forkOn
   threadDelay $ period * 1000
   mapM_ killThread ts
   mapM_ takeMVar vs
@@ -80,9 +86,10 @@ throughput !period !numCap !numWork qop = do
   (Just . sum) `fmap` mapM readIORef cs
 
 res2disp :: [Int] -> (Int, Int)
-res2disp !rs = (mn + d, d)
-    where (mn, mx) = (minimum rs, maximum rs)
-          !d = (mx - mn) `div` 2
+res2disp !rs = (mean, d)
+    where mean = sum rs `div` length rs
+          (mn, mx) = (minimum rs, maximum rs)
+          !d = (mx - mean) `min` (mean - mn)
 
 opInsDel
     :: IO Int -- random key generator
@@ -143,7 +150,7 @@ benchmark setting@(
             return $! case rs of
                 [] -> abortedMsg
                 _ -> uncurry TimingRes $ res2disp rs
-            
+
     performMajorGC
     BenchReport setting `fmap` bench benchCase
 
