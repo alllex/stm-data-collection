@@ -14,48 +14,49 @@ import Options.Applicative
 
 {- Data Structures -}
 
-data BenchSetting a = BenchSetting {
-    getStruct :: BenchStruct a,
+data BenchSetting a b = BenchSetting {
+    getStruct :: BenchStruct a b,
     getEnv :: BenchEnv,
     getProc :: BenchProc,
     getCase :: BenchCase
 } deriving Show
 
-data BenchStruct a = BenchStruct {
+data BenchStruct a b = BenchStruct {
     getName  :: String,
-    getInsOp :: a -> IO (),
-    getDelOp :: IO ()
+    getCons  :: IO a,
+    getInsOp :: a -> b -> IO (),
+    getDelOp :: a -> IO ()
 }
 
 data BenchEnv = BenchEnv {
-    getCountOfWorkers :: Int,
-    getCountOpCaps    :: Int
+    getCountOfWorkers :: {-# UNPACK #-} !Int,
+    getCountOpCaps    :: {-# UNPACK #-} !Int
 } deriving Show
 
 data BenchProc = BenchProc {
-    getInitSize :: Int,
-    getInsRate  :: Int,
-    getCountOfRuns :: Int
+    getInitSize :: {-# UNPACK #-} !Int,
+    getInsRate  :: {-# UNPACK #-} !Int,
+    getCountOfRuns :: {-# UNPACK #-} !Int
 } deriving Show
 
 data BenchCase
     = ThroughputCase {
-        getPeriod :: Int -- period in ms
+        getPeriod :: {-# UNPACK #-} !Int -- period in ms
     }
     | TimingCase {
-        getCountOfOps :: Int, -- amount of operations to be performed
-        getAbortionTimeout :: Int -- time before abort in ms
+        getCountOfOps :: {-# UNPACK #-} !Int, -- amount of operations to be performed
+        getAbortionTimeout :: {-# UNPACK #-} !Int -- time before abort in ms
     } deriving Show
 
 data BenchResult
-    = ThroughputRes Int Int
-    | TimingRes Int Int
+    = ThroughputRes {-# UNPACK #-} !Int {-# UNPACK #-} !Int
+    | TimingRes {-# UNPACK #-} !Int {-# UNPACK #-} !Int
     | AbortedRes String
     deriving Show
 
-data BenchReport a = BenchReport {
-        getSetting :: BenchSetting a,
-        getResults :: [(String, BenchResult)]
+data BenchReport a b = BenchReport {
+    getSetting :: BenchSetting a b,
+    getResult  :: BenchResult
 } deriving Show
 
 {- Applicative parsers -}
@@ -64,19 +65,19 @@ withInfo :: Parser a -> String -> ParserInfo a
 withInfo opts desc = info (helper <*> opts) $ progDesc desc
 
 buildBenchSetting
-    :: BenchStruct a
+    :: BenchStruct a b
     -> BenchEnv
     -> BenchProc
-    -> IO (BenchSetting a)
+    -> IO (BenchSetting a b)
 buildBenchSetting strt env defProc =
     execParser $ parseBenchSetting strt env defProc
                  `withInfo` "Concurrent Data Structures Benchmark"
 
 parseBenchSetting
-    :: BenchStruct a
+    :: BenchStruct a b
     -> BenchEnv
     -> BenchProc
-    -> Parser (BenchSetting a)
+    -> Parser (BenchSetting a b)
 parseBenchSetting strt env defProc = BenchSetting strt env
     <$> parseBenchProc defProc
     <*> parseBenchCase
@@ -118,5 +119,5 @@ parseThroughput = ThroughputCase
 
 {- Show instances -}
 
-instance Show (BenchStruct a) where
-    show (BenchStruct name _ _) = name
+instance Show (BenchStruct a b) where
+    show (BenchStruct name _ _ _) = name

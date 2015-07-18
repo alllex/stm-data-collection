@@ -1,4 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Benchmark (
     module BenchData,
@@ -6,7 +7,7 @@ module Benchmark (
 ) where
 
 import Control.Monad
-import Control.Exception (finally)
+import Control.Exception (finally, bracket_)
 import Control.Concurrent
 import System.Random.PCG.Fast (createSystemRandom, uniform)
 import System.Timeout
@@ -15,7 +16,14 @@ import Data.Maybe (catMaybes)
 
 import BenchData
 
-execBenchmark :: BenchStruct Int -> BenchProc -> IO (BenchReport Int)
+import Debug.Trace
+
+event :: String -> IO a -> IO a
+event label =
+  bracket_ (traceMarkerIO $ "START " ++ label)
+           (traceMarkerIO $ "STOP "  ++ label)
+
+execBenchmark :: BenchStruct a Int -> BenchProc -> IO (BenchReport a Int)
 execBenchmark strt defProc = do
     capsNum <- getNumCapabilities
     let env = BenchEnv capsNum capsNum
@@ -23,20 +31,21 @@ execBenchmark strt defProc = do
     benchmark setting
 
 timing :: Int -> Int -> Int -> IO b -> IO Int
-timing opCount numCap numWork op = do
+timing !opCount !numCap !numWork op = do
 
-  let perWorker = opCount `div` numWork
-      fstWorker = perWorker + (opCount `mod` numWork)
+  let !perWorker = opCount `div` numWork
+      !fstWorker = perWorker + (opCount `mod` numWork)
       work' n = forM_ [1..n] $ const op
       work 1 = work' fstWorker
       work _ = work' perWorker
+      wi = [1..numWork]
 
-  (ws, vs) <- fmap unzip . forM [1..numWork] $ \i -> do
+  (wis, vs) <- fmap unzip . forM wi $ \i -> do
     v <- newEmptyMVar
-    return (work i >> putMVar v (), v)
+    return ((i, work i >> putMVar v ()), v)
 
   startTime <- getTime
-  forM_ (zip [1..] ws) $ \(i, w) -> forkOn (i `mod` numCap) w
+  forM_ wis $ \(i, w) -> forkOn (i `mod` numCap) w
   mapM_ takeMVar vs
   stopTime <- getTime
 
@@ -45,10 +54,10 @@ timing opCount numCap numWork op = do
 
 
 throughput :: Int -> Int -> Int -> IO a -> IO Int
-throughput period numCap numWork qop = do
+throughput !period !numCap !numWork qop = do
 
   cs <- replicateM numWork $ newIORef 0
-  (ts, vs) <- fmap unzip . forM (zip cs [1..]) $ \(c, i) -> do
+  (ts, vs) <- fmap unzip . forM (zip cs [0..numWork]) $ \(c, i) -> do
     v <- newEmptyMVar
     let work = forever $ qop >> modifyIORef' c (+1)
     t <- forkOn (i `mod` numCap) $ finally work (putMVar v ())
@@ -61,55 +70,59 @@ throughput period numCap numWork qop = do
   sum `fmap` mapM readIORef cs
 
 res2disp :: [Int] -> (Int, Int)
-res2disp rs = (mn + d, d)
+res2disp !rs = (mn + d, d)
     where (mn, mx) = (minimum rs, maximum rs)
-          d = (mx - mn) `div` 2
+          !d = (mx - mn) `div` 2
 
 opInsDel
     :: IO Int -- random key generator
     -> IO Int -- random percent generator
     -> Int    -- insertion rate
-    -> (Int -> IO ()) -- insertion operation
-    -> IO ()  -- deletion operation
+    -> (a -> Int -> IO ()) -- insertion operation
+    -> (a -> IO ())  -- deletion operation
+    -> a      -- struct
     -> IO ()
-opInsDel rndKey rndPer insRate ins del = do
+opInsDel rndKey rndPer !insRate ins del struct = do
     percent <- rndPer
     if percent < insRate
-        then rndKey >>= ins
-        else del
+        then rndKey >>= ins struct
+        else del struct
 
-fill :: Int -> IO Int -> (Int -> IO ()) -> IO ()
-fill initSize rndKey insOp =
-    replicateM_ initSize $ rndKey >>= insOp
+fill :: Int -> Int -> IO Int -> (a -> Int -> IO ()) -> a -> IO ()
+fill !numCap !initSize rndKey ins struct = do
+    -- parallel data structure filling
+    timing initSize numCap numCap $ rndKey >>= ins struct
+    return () -- discarding result
 
-benchmark :: BenchSetting Int -> IO (BenchReport Int)
+benchmark :: BenchSetting a Int -> IO (BenchReport a Int)
 benchmark setting@(
-    BenchSetting (BenchStruct name insOp delOp)
+    BenchSetting (BenchStruct name cons insOp delOp)
                  (BenchEnv workersNum capsNum)
-                 (BenchProc initSize insRate runsNum)
+                 (BenchProc !initSize !insRate !runsNum)
                  benchCase
-  ) = do
+  ) = event ("series of runs with: " ++ name) $ do
     g <- createSystemRandom
-    let randomInt = uniform g :: IO Int
-        randomPercent = (`mod` 101) `fmap` randomInt
-        op = opInsDel randomInt randomPercent insRate insOp delOp
-        oneBench bencher = do
-            fill initSize randomInt insOp
-            bencher workersNum capsNum op
+    let rndInt = uniform g :: IO Int
+        rndPerc = (`mod` 101) `fmap` rndInt
+        buildOp = opInsDel rndInt rndPerc insRate insOp delOp
+        oneBench bencher = event ("benchmark with: " ++ name) $ do
+            struct <- cons
+            event "filling structure" $ fill capsNum initSize rndInt insOp struct
+            event "bench itself" $ bencher workersNum capsNum $ buildOp struct
 
         bench (ThroughputCase period) = do
             let bench' = oneBench $ throughput period
             (r, d) <- res2disp `fmap` replicateM runsNum bench'
-            return [(name, ThroughputRes r d)]
+            return $! ThroughputRes r d
 
         bench (TimingCase opCount timelimit) = do
             let abortOnTimeout = timeout (timelimit * 1000)
                 bench' = abortOnTimeout $ oneBench $ timing opCount
                 abortedMsg = AbortedRes $ ">" ++ show timelimit ++ "ms"
             rs <- catMaybes `fmap` replicateM runsNum bench'
-            let res = case rs of [] -> abortedMsg
-                                 _ -> uncurry TimingRes $ res2disp rs
-            return [(name, res)]
+            return $! case rs of
+                [] -> abortedMsg
+                _ -> uncurry TimingRes $ res2disp rs
 
     BenchReport setting `fmap` bench benchCase
 

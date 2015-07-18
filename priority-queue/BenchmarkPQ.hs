@@ -42,10 +42,10 @@ findImpl name = find impls
             else find is
 
 benchOne' (name, PQB qcons) = do
-    q <- atomically qcons
-    let insOp key = atomically $ insert q key ()
-        delOp = atomically $ deleteMin q
-        struct = BenchStruct name insOp delOp
+    let cons = atomically qcons
+        insOp q key = atomically $ insert q key ()
+        delOp q = atomically $ deleteMin q
+        struct = BenchStruct name cons insOp delOp
         defProc = BenchProc 1000 50 3
     report <- execBenchmark struct defProc
     print report
@@ -57,4 +57,4 @@ benchOne name =
         Just pqb -> benchOne' (name, pqb)
 
 main :: IO ()
-main = benchOne "coarse-list-pq"
+main = benchOne "linkedlist-pcg-perthread-skiplist-pq" 

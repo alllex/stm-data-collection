@@ -16,6 +16,7 @@ cabal.sandbox.config
 *.hp
 temp
 
+*.eventlog
 /priority-queue/Bench
 /priority-queue/Test
 /misc/*.csv
