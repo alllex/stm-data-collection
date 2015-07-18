@@ -16,13 +16,13 @@ import Data.Primitive.ByteArray
 
 type IOByteArray = MutableByteArray RealWorld
 
-data BenchmarkOptions =
-  BenchmarkOptions { runs :: Int
-                   , timeout :: Int
-                   }
+data BenchOptions = BenchOptions {
+    runs :: Int,
+    timeout :: Int
+}
 
-benchmarkOptions :: Parser BenchmarkOptions
-benchmarkOptions = BenchmarkOptions
+benchmarkOptions :: Parser BenchOptions
+benchmarkOptions = BenchOptions
   <$> (option auto)
     (value 3   <> long "runs"    <> short 'r' <> help "Best in number of runs")
   <*> (option auto)
@@ -109,8 +109,8 @@ count zero counter result timeout = do
   takeMVar sync
   result c
 
-benchmark :: BenchmarkOptions -> IO [(Int, String)]
-benchmark (BenchmarkOptions runs timeout) = do
+benchmark :: BenchOptions -> IO [(Int, String)]
+benchmark (BenchOptions runs timeout) = do
   let cs = counters
   rs <- forM cs $ \(name, cnt) -> do
     res <- maximum `fmap` replicate runs `fmap` cnt (1000 * timeout)
@@ -135,8 +135,3 @@ main = do
   forM_ rs $ \(r, name) -> do
     putStrLn $ name ++ "\t" ++ show r
   writeResults "counter-results.csv" rs
-
-
-
-
-

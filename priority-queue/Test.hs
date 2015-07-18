@@ -35,7 +35,7 @@ a <% f = f a
 addManyRemOne :: PriorityQueue q => STM (q Int Int) -> [Int] -> Int -> IO ()
 addManyRemOne _ [] _ = return ()
 addManyRemOne cons vals ans = do
-  pq <- atomically $ cons
+  pq <- atomically cons
   forM_ vals $ \x -> atomically $ insert pq x x
   x <- atomically $ deleteMin pq
   x `shouldBe` (ans :: Int)
@@ -43,12 +43,12 @@ addManyRemOne cons vals ans = do
 
 addManyRemOneProp :: PriorityQueue q => STM (q Int Int) -> [Int] -> IO ()
 addManyRemOneProp _ []    = return ()
-addManyRemOneProp cons vs = addManyRemOne cons vs $ head $ sort vs
+addManyRemOneProp cons vs = addManyRemOne cons vs $ minimum vs
 
 
 addManyRemAll :: PriorityQueue q => STM (q Int Int) -> [Int] -> IO ()
 addManyRemAll cons vals = do
-  pq <- atomically $ cons
+  pq <- atomically cons
   forM_ vals $ \x -> atomically $ insert pq x x
   let vals' = sort vals
   forM_ vals' $ \ans -> do
@@ -60,7 +60,7 @@ addManyRemAll cons vals = do
 
 addRemEach :: PriorityQueue q => STM (q Int Int) -> [Int] -> IO ()
 addRemEach cons vals = do
-  pq <- atomically $ cons
+  pq <- atomically cons
   forM_ vals $ \v -> do
     atomically $ insert pq v v
     y <- atomically $ peekMin pq
@@ -71,23 +71,23 @@ addRemEach cons vals = do
 
 {-   Producer/Consumer checkers and properties   -}
 
-fork'n'join :: [IO a] -> IO ()
-fork'n'join ios = do
+forkNJoin :: [IO a] -> IO ()
+forkNJoin ios = do
   children <- forM ios $ \io -> do
     child <- newEmptyMVar
     forkFinally io $ \_ -> putMVar child ()
     return child
-  forM_ children $ \child -> do
-    takeMVar child
+  forM_ children $ \child -> takeMVar child
 
 
-prod'n'cons :: (Ord a, Show a, PriorityQueue q) => Int -> Int -> q a a -> [a] -> IO ()
-prod'n'cons pcount ccount pq vals = do
+prodNCons :: (Ord a, Show a, PriorityQueue q) =>
+    Int -> Int -> q a a -> [a] -> IO ()
+prodNCons pcount ccount pq vals = do
   prodVals <- newMVar vals
   consVals <- newMVar vals
   let prods = replicate pcount $ prodRole prodVals
   let conss = replicate ccount $ consRole prodVals consVals
-  fork'n'join $ prods ++ conss
+  forkNJoin $ prods ++ conss
   where
       msg mark name m = name ++ "\t" ++ mark ++ "\t" ++ m
       pmsg = msg "---->"
@@ -125,8 +125,7 @@ prod'n'cons pcount ccount pq vals = do
               [] -> do
                 "is starving..." <% dmsg
                 return ()
-              _  -> do
-                consRole prodVals consVals
+              _  -> consRole prodVals consVals
           (Just x) -> do
             "is waiting on values" <% dmsg
             vs <- takeMVar consVals
@@ -148,16 +147,14 @@ prodNconsK pqcons n k vals = do
                     show n ++ "/" ++ show k ++ " capacities" ++
                     "and " ++ show (length vals) ++ " items"
   ">>> Start " ++ description <% printDebug
-  pq <- atomically $ pqcons
-  prod'n'cons n k pq vals
+  pq <- atomically pqcons
+  prodNCons n k pq vals
   "<<< Finish " ++ description <% printDebug
 
 
 prodNconsKprop :: (Ord a, Show a, PriorityQueue q) => STM (q a a) -> Int -> Int -> [a] -> IO ()
 prodNconsKprop pqcons n k vals =
-  if n > 0 && k > 0
-  then prodNconsK pqcons n k vals
-  else return ()
+    when (n > 0 && k > 0) $ prodNconsK pqcons n k vals
 
 
 {-   Per implementation test runner   -}
@@ -219,7 +216,3 @@ testImpl base cons = hspec $ do
 main :: IO ()
 main = do
   testImpl "Coarse-grained List" (new :: STM (ListPQ  Int Int))
-
-
-
-
