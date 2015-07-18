@@ -34,6 +34,9 @@ impls =
   , ("linkedlist-pcg-perthread-skiplist-pq", PQB (new :: STM (LinkedPCGperThreadSLPQ Int ())))
   ]
 
+implNames :: [String]
+implNames = map fst impls
+
 findImpl :: String -> Maybe PQBox
 findImpl name = find impls
     where find [] = Nothing
@@ -57,4 +60,12 @@ benchOne name =
         Just pqb -> benchOne' (name, pqb)
 
 main :: IO ()
-main = benchOne "linkedlist-pcg-perthread-skiplist-pq" 
+-- main = benchOne "linkedlist-pcg-perthread-skiplist-pq"
+-- main = mapM_ benchOne
+main = do
+    benchOne "tarray-pcg-perthread-skiplist-pq"
+    benchOne "linkedlist-pcg-perthread-skiplist-pq"
+    benchOne "tarray-pcg-skiplist-pq"
+    benchOne "linkedlist-pcg-skiplist-pq"
+    benchOne "fine-heap-pq"
+    benchOne "coarse-heap-pq"

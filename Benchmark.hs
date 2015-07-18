@@ -13,6 +13,7 @@ import System.Random.PCG.Fast (createSystemRandom, uniform)
 import System.Timeout
 import Data.IORef
 import Data.Maybe (catMaybes)
+import System.Mem
 
 import BenchData
 
@@ -30,8 +31,11 @@ execBenchmark strt defProc = do
     setting <- buildBenchSetting strt env defProc
     benchmark setting
 
-timing :: Int -> Int -> Int -> IO b -> IO Int
-timing !opCount !numCap !numWork op = do
+timing
+    :: (IO () -> IO (Maybe ())) -> Int
+    -> Int -> Int -> IO b
+    -> IO (Maybe Int)
+timing abort !opCount !numCap !numWork op = do
 
   let !perWorker = opCount `div` numWork
       !fstWorker = perWorker + (opCount `mod` numWork)
@@ -45,15 +49,21 @@ timing !opCount !numCap !numWork op = do
     return ((i, work i >> putMVar v ()), v)
 
   startTime <- getTime
-  forM_ wis $ \(i, w) -> forkOn (i `mod` numCap) w
-  mapM_ takeMVar vs
+  tle <- abort $ do
+    forM_ wis $ \(i, w) -> forkOn (i `mod` numCap) w
+    mapM_ takeMVar vs
   stopTime <- getTime
 
   let dt = stopTime - startTime
-  return $! round $ dt * 1000
+  return $ case tle of
+      Nothing -> Nothing
+      _ -> Just $! round $ dt * 1000
 
 
-throughput :: Int -> Int -> Int -> IO a -> IO Int
+throughput
+    :: Int
+    -> Int -> Int -> IO a
+    -> IO (Maybe Int)
 throughput !period !numCap !numWork qop = do
 
   cs <- replicateM numWork $ newIORef 0
@@ -67,7 +77,7 @@ throughput !period !numCap !numWork qop = do
   mapM_ killThread ts
   mapM_ takeMVar vs
 
-  sum `fmap` mapM readIORef cs
+  (Just . sum) `fmap` mapM readIORef cs
 
 res2disp :: [Int] -> (Int, Int)
 res2disp !rs = (mn + d, d)
@@ -88,11 +98,11 @@ opInsDel rndKey rndPer !insRate ins del struct = do
         then rndKey >>= ins struct
         else del struct
 
-fill :: Int -> Int -> IO Int -> (a -> Int -> IO ()) -> a -> IO ()
+fill :: Int -> Int -> IO Int -> (a -> Int -> IO ()) -> a -> IO (Maybe Int)
 fill !numCap !initSize rndKey ins struct = do
+    let abort = timeout $ 1000 * 1000
     -- parallel data structure filling
-    timing initSize numCap numCap $ rndKey >>= ins struct
-    return () -- discarding result
+    timing abort initSize numCap numCap $ rndKey >>= ins struct
 
 benchmark :: BenchSetting a Int -> IO (BenchReport a Int)
 benchmark setting@(
@@ -105,25 +115,36 @@ benchmark setting@(
     let rndInt = uniform g :: IO Int
         rndPerc = (`mod` 101) `fmap` rndInt
         buildOp = opInsDel rndInt rndPerc insRate insOp delOp
+        oneBench :: (Int -> Int -> IO () -> IO (Maybe Int)) -> IO (Maybe Int)
         oneBench bencher = event ("benchmark with: " ++ name) $ do
             struct <- cons
-            event "filling structure" $ fill capsNum initSize rndInt insOp struct
-            event "bench itself" $ bencher workersNum capsNum $ buildOp struct
+            let fillAct = fill capsNum initSize rndInt insOp struct
+                benchAct = bencher workersNum capsNum $ buildOp struct
+            tle <- event "filling structure" fillAct
+            performMajorGC
+            res <- case tle of Nothing -> return Nothing
+                               _ -> event "bench itself" benchAct
+            performMajorGC
+            return res
 
         bench (ThroughputCase period) = do
             let bench' = oneBench $ throughput period
-            (r, d) <- res2disp `fmap` replicateM runsNum bench'
-            return $! ThroughputRes r d
+                abortedMsg = AbortedRes "init >1000ms"
+            rs <- catMaybes `fmap` replicateM runsNum bench'
+            return $! case rs of
+                [] -> abortedMsg
+                _ -> uncurry ThroughputRes $ res2disp rs
 
         bench (TimingCase opCount timelimit) = do
             let abortOnTimeout = timeout (timelimit * 1000)
-                bench' = abortOnTimeout $ oneBench $ timing opCount
+                bench' = oneBench $ timing abortOnTimeout opCount
                 abortedMsg = AbortedRes $ ">" ++ show timelimit ++ "ms"
             rs <- catMaybes `fmap` replicateM runsNum bench'
             return $! case rs of
                 [] -> abortedMsg
                 _ -> uncurry TimingRes $ res2disp rs
-
+            
+    performMajorGC
     BenchReport setting `fmap` bench benchCase
 
 
