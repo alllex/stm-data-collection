@@ -1,11 +1,11 @@
 
-module Internal.THeapPQ(
+module PriorityQueue.Internals.THeapPQ(
     THeapPQ
 ) where
 
 import Data.Functor((<$>))
 import Control.Concurrent.STM
-import PriorityQueue
+import PriorityQueue.PriorityQueue
 
 
 data Heap k v = Nil

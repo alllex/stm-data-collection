@@ -1,16 +1,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Internal.LinkedSkipListPQ(
-  LinkedSkipListPQ
+module PriorityQueue.Internals.LinkedPCGSkipListPQ(
+  LinkedPCGSkipListPQ
 ) where
 
 import Control.Monad.STM
 import Control.Monad
 import Control.Concurrent.STM
 import System.IO.Unsafe
-import System.Random(randomR, newStdGen)
+import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
 
-import PriorityQueue
+import PriorityQueue.PriorityQueue
 
 data Node k v
   = Nil
@@ -36,12 +36,13 @@ type TNode k v = TVar (Node k v)
   The first layout is the main layout that is never deleted
   and used for data access and control.
 -}
-data LinkedSkipListPQ k v
+data LinkedPCGSkipListPQ k v
   = PQ
-  { getTop       :: TNode k v -- top-node of the main layout
-  , getBottom    :: TNode k v -- bottom-node of the main layout
-  , getHeight    :: TVar Int  -- height of the main layout
-  , getNil       :: TNode k v -- pointer to Nil shared by all nodes
+  { getTop       :: TNode k v  -- top-node of the main layout
+  , getBottom    :: TNode k v  -- bottom-node of the main layout
+  , getHeight    :: TVar Int   -- height of the main layout
+  , getNil       :: TNode k v  -- pointer to Nil shared by all nodes
+  , getGenIO     :: TVar GenIO -- RNG
   }
 
 
@@ -61,28 +62,28 @@ buildHeads up' h = do
   writeTVar curr' $ Node undefined undefined up' next' down'
   return (curr', bottom')
 
-pqNew' :: Ord k => Int -> STM (LinkedSkipListPQ k v)
+pqNew' :: Ord k => Int -> STM (LinkedPCGSkipListPQ k v)
 pqNew' height = do
   nil' <- newTVar Nil
   (top', bottom') <- buildHeads nil' height
   height' <- newTVar height
-  return $ PQ top' bottom' height' nil'
+  gio' <- newTVar $ unsafePerformIO createSystemRandom
+  return $ PQ top' bottom' height' nil' gio'
 
 
-pqNew :: Ord k => STM (LinkedSkipListPQ k v)
+pqNew :: Ord k => STM (LinkedPCGSkipListPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
 logHalf = log 0.5
 
-chooseLvl :: Int -> Int
-chooseLvl h =
+chooseLvl :: GenIO -> Int -> Int
+chooseLvl g h =
   min h $ 1 + truncate (log x / logHalf)
-    where x = fst $ randomR (0.0, 1.0) (unsafePerformIO newStdGen)
+    where x = unsafePerformIO (uniform g :: IO Float)
 
-
-pqInsert :: Ord k => LinkedSkipListPQ k v -> k -> v -> STM ()
-pqInsert (PQ top' _ height' nil') k v = do
+pqInsert :: Ord k => LinkedPCGSkipListPQ k v -> k -> v -> STM ()
+pqInsert (PQ top' _ height' nil' gio') k v = do
   top <- readTVar top'
   case top of
     Nil -> error "Illegal state: top must not be Nil"
@@ -90,7 +91,9 @@ pqInsert (PQ top' _ height' nil') k v = do
       prevs <- buildPrevs top' []
       height <- readTVar height'
       v' <- newTVar v
-      insertNode v' nil' prevs $ chooseLvl height
+      gio <- readTVar gio'
+      let lvl = chooseLvl gio height
+      insertNode v' nil' prevs lvl
   where
     buildPrevs curr' prevs = do
       curr <- readTVar curr'
@@ -120,8 +123,8 @@ pqInsert (PQ top' _ height' nil') k v = do
       insertNode v' curr' prevs (h-1)
     insertNode _ _ [] _ = error "Illegal state: main layout must be not lower than new column"
 
-pqPeekMin :: Ord k => LinkedSkipListPQ k v -> STM v
-pqPeekMin (PQ _ bottom' _ _) = do
+pqPeekMin :: Ord k => LinkedPCGSkipListPQ k v -> STM v
+pqPeekMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
   case bottom of
     Nil -> error "Illegal state: bottom must not be Nil"
@@ -132,8 +135,8 @@ pqPeekMin (PQ _ bottom' _ _) = do
         (Node _ v' _ _ _) -> readTVar v'
 
 
-pqDeleteMin :: Ord k => LinkedSkipListPQ k v -> STM v
-pqDeleteMin (PQ _ bottom' _ _) = do
+pqDeleteMin :: Ord k => LinkedPCGSkipListPQ k v -> STM v
+pqDeleteMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
   case bottom of
     Nil -> error "Illegal state: bottom must not be Nil"
@@ -155,7 +158,7 @@ pqDeleteMin (PQ _ bottom' _ _) = do
                  recDel headUp up
 
 
-instance PriorityQueue LinkedSkipListPQ where
+instance PriorityQueue LinkedPCGSkipListPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin

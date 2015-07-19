@@ -1,5 +1,5 @@
 
-module PriorityQueue (PriorityQueue(..)) where
+module PriorityQueue.PriorityQueue (PriorityQueue(..)) where
 
 import Control.Concurrent.STM
 
@@ -10,4 +10,3 @@ class PriorityQueue q where
     deleteMin    :: (Ord k) => q k v -> STM v
     tryDeleteMin :: (Ord k) => q k v -> STM (Maybe v)
     tryDeleteMin pq = (Just `fmap` deleteMin pq) `orElse` return Nothing
-

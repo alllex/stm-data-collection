@@ -1,21 +1,20 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 import Control.Concurrent.STM
-import Control.Monad
 
 import Benchmark
 
-import PriorityQueue
-import Internal.ListPQ
-import Internal.TListPQ
-import Internal.HeapPQ
-import Internal.THeapPQ
-import Internal.TArraySkipListPQ
-import Internal.LinkedSkipListPQ
-import Internal.TArrayPCGSkipListPQ
-import Internal.LinkedPCGSkipListPQ
-import Internal.TArrayPCGperThreadSLPQ
-import Internal.LinkedPCGperThreadSLPQ
+import PriorityQueue.PriorityQueue
+import PriorityQueue.Internals.ListPQ
+import PriorityQueue.Internals.TListPQ
+import PriorityQueue.Internals.HeapPQ
+import PriorityQueue.Internals.THeapPQ
+import PriorityQueue.Internals.TArraySkipListPQ
+import PriorityQueue.Internals.LinkedSkipListPQ
+import PriorityQueue.Internals.TArrayPCGSkipListPQ
+import PriorityQueue.Internals.LinkedPCGSkipListPQ
+import PriorityQueue.Internals.TArrayPCGperThreadSLPQ
+import PriorityQueue.Internals.LinkedPCGperThreadSLPQ
 
 
 data PQBox = forall q. PriorityQueue q => PQB (STM (q Int ()))

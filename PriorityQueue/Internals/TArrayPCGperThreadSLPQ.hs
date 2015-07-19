@@ -1,17 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Internal.TArraySkipListPQ(
-    TArraySkipListPQ
+module PriorityQueue.Internals.TArrayPCGperThreadSLPQ(
+    TArrayPCGperThreadSLPQ
 ) where
 
 import Data.Array.MArray
 import Control.Monad.STM
 import Control.Monad
 import Control.Concurrent.STM
+import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
 import System.IO.Unsafe
-import System.Random(randomR, newStdGen)
+import Control.Concurrent
 
-import PriorityQueue
+import PriorityQueue.PriorityQueue
 
 type Nodes k v = TArray Int (Node k v)
 
@@ -22,36 +23,44 @@ data Node k v = Nil
               , getNodes :: Nodes k v
               }
 
-data TArraySkipListPQ k v = PQ
+data TArrayPCGperThreadSLPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
+  , getGen       :: TArray Int GenIO
   }
 
 
-pqNew' :: Ord k => Int -> STM (TArraySkipListPQ k v)
+pqNew' :: Ord k => Int -> STM (TArrayPCGperThreadSLPQ k v)
 pqNew' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar $ height
-  return $ PQ headNodes vHeight
+  let cn = unsafePerformIO getNumCapabilities
+  gios' <- newArray (1, cn) $ unsafePerformIO createSystemRandom
+  return $ PQ headNodes vHeight gios'
 
 
-pqNew :: Ord k => STM (TArraySkipListPQ k v)
+pqNew :: Ord k => STM (TArrayPCGperThreadSLPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
 logHalf = log 0.5
 
-chooseLvl :: Int -> Int
-chooseLvl h =
+chooseLvl :: GenIO -> Int -> Int
+chooseLvl g h =
   min h $ 1 + truncate (log x / logHalf)
-    where x = fst $ randomR (0.0, 1.0) (unsafePerformIO newStdGen)
+    where x = unsafePerformIO (uniform g :: IO Float)
 
-
-pqInsert :: Ord k => TArraySkipListPQ k v -> k -> v -> STM ()
-pqInsert (PQ headNodes vHeight) k v = do
+pqInsert :: Ord k => TArrayPCGperThreadSLPQ k v -> k -> v -> STM ()
+pqInsert (PQ headNodes vHeight gios') k v = do
   height <- readTVar vHeight
   prevs <- buildPrevs headNodes height []
-  insertNode (chooseLvl height) prevs
+  let getCapNum = do
+        tid <- myThreadId
+        fst `fmap` threadCapability tid
+      cn = 1 + unsafePerformIO getCapNum
+  gio <- readArray gios' cn
+  let lvl = chooseLvl gio height
+  insertNode lvl prevs
     where
       buildPrevs _ 0 prevs = return prevs
       buildPrevs nodes lvl prevs = do
@@ -72,21 +81,21 @@ pqInsert (PQ headNodes vHeight) k v = do
                 writeArray p lvl newNode
                 writeArray nodes lvl nextNode
                 updatePtrs (lvl+1) ps
-            updatePtrs _ [] = error "TArraySkipListPQ: main layout must not be lower than new one"
+            updatePtrs _ [] = error "TArrayPCGperThreadSLPQ: main layout must be not lower than new one"
 
         updatePtrs 1 prevs
 
 
-pqPeekMin :: Ord k => TArraySkipListPQ k v -> STM v
-pqPeekMin (PQ headNodes _) = do
+pqPeekMin :: Ord k => TArrayPCGperThreadSLPQ k v -> STM v
+pqPeekMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
     Nil -> retry
     (Node _ vv _) -> readTVar vv
 
 
-pqDeleteMin :: Ord k => TArraySkipListPQ k v -> STM v
-pqDeleteMin (PQ headNodes _) = do
+pqDeleteMin :: Ord k => TArrayPCGperThreadSLPQ k v -> STM v
+pqDeleteMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
     Nil -> retry
@@ -96,9 +105,8 @@ pqDeleteMin (PQ headNodes _) = do
       readTVar vv
 
 
-instance PriorityQueue TArraySkipListPQ where
+instance PriorityQueue TArrayPCGperThreadSLPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
     deleteMin      = pqDeleteMin
-

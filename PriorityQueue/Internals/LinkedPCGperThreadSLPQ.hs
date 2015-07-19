@@ -1,18 +1,17 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Internal.LinkedPCGperThreadSLPQ(
+module PriorityQueue.Internals.LinkedPCGperThreadSLPQ(
   LinkedPCGperThreadSLPQ
 ) where
 
 import Control.Monad.STM
-import Control.Monad
 import Control.Concurrent.STM
 import System.IO.Unsafe
 import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
 import Data.Array.MArray
 import Control.Concurrent
 
-import PriorityQueue
+import PriorityQueue.PriorityQueue
 
 data Node k v
   = Nil
@@ -170,9 +169,3 @@ instance PriorityQueue LinkedPCGperThreadSLPQ where
     insert         = pqInsert
     peekMin        = pqPeekMin
     deleteMin      = pqDeleteMin
-
-
-
-
-
-
