@@ -43,16 +43,18 @@ findImpl name = find impls
             if name == name' then Just impl
             else find is
 
+benchOne' :: (String, PQBox) -> IO ()
 benchOne' (name, PQB qcons) = do
     let cons = atomically qcons
         insOp q key = atomically $ insert q key ()
         delOp q = atomically $ deleteMin q
         struct = BenchStruct name cons insOp delOp
-        defProc = BenchProc 1000 50 3
+        defProc = BenchProc 1000 50 3 1000
     report <- execBenchmark struct defProc
     print report
 
 
+benchOne :: String -> IO ()
 benchOne name =
     case findImpl name of
         Nothing -> error "Unknown implementation"
@@ -63,5 +65,5 @@ main :: IO ()
 -- main = mapM_ benchOne
 main = do
     benchOne "coarse-heap-pq"
-    benchOne "tarray-pcg-perthread-skiplist-pq"
-    benchOne "tarray-pcg-skiplist-pq"
+    -- benchOne "tarray-pcg-perthread-skiplist-pq"
+    -- benchOne "tarray-pcg-skiplist-pq"

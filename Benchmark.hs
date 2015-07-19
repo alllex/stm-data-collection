@@ -1,5 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Benchmark (
     module BenchData,
@@ -12,17 +13,24 @@ import Control.Concurrent
 import System.Random.PCG.Fast (createSystemRandom, uniform)
 import System.Timeout
 import Data.IORef
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
+import Data.List (find)
 import System.Mem
 
 import BenchData
 
 import Debug.Trace
 
+-- for profiling
 event :: String -> IO a -> IO a
 event label =
   bracket_ (traceMarkerIO $ "START " ++ label)
            (traceMarkerIO $ "STOP "  ++ label)
+
+data OneBenchStatus
+    = PrepFail          -- preparation for benchmark was aborted
+    | BenchFail         -- benchmark was aborted
+    | BenchSucc Int     -- benchmark finished successfully
 
 execBenchmark :: BenchStruct a Int -> BenchProc -> IO (BenchReport a Int)
 execBenchmark strt defProc = do
@@ -31,10 +39,9 @@ execBenchmark strt defProc = do
     setting <- buildBenchSetting strt env defProc
     benchmark setting
 
-timing
-    :: (IO () -> IO (Maybe ())) -> Int
-    -> Int -> Int -> IO b
-    -> IO (Maybe Int)
+type BenchFunc a = Int -> Int -> IO a -> IO (Maybe Int)
+
+timing :: (IO () -> IO (Maybe ())) -> Int -> BenchFunc a
 timing abort !opCount !numCap !numWork op = do
 
   let !perWorker = opCount `div` numWork
@@ -49,6 +56,8 @@ timing abort !opCount !numCap !numWork op = do
     return ((i `mod` numCap, work i >> putMVar v ()), v)
 
   performMajorGC
+  traceMarkerIO "Right before timing benchmark start"
+
   startTime <- getTime
   tle <- abort $ do
     forM_ cws $ uncurry forkOn
@@ -61,10 +70,7 @@ timing abort !opCount !numCap !numWork op = do
       _ -> Just $! round $ dt * 1000
 
 
-throughput
-    :: Int
-    -> Int -> Int -> IO a
-    -> IO (Maybe Int)
+throughput :: Int -> BenchFunc a
 throughput !period !numCap !numWork qop = do
 
   cs <- replicateM numWork $ newIORef 0
@@ -76,7 +82,7 @@ throughput !period !numCap !numWork qop = do
     return ((cap, wrappedWork), v)
 
   performMajorGC
-  traceMarkerIO "Right before throughput benchark start"
+  traceMarkerIO "Right before throughput benchmark start"
 
   ts <- forM cws $ uncurry forkOn
   threadDelay $ period * 1000
@@ -105,9 +111,12 @@ opInsDel rndKey rndPer !insRate ins del struct = do
         then rndKey >>= ins struct
         else del struct
 
-fill :: Int -> Int -> IO Int -> (a -> Int -> IO ()) -> a -> IO (Maybe Int)
-fill !numCap !initSize rndKey ins struct = do
-    let abort = timeout $ 1000 * 1000
+fill
+    :: Int -> Int -> Int
+    -> IO Int -> (a -> Int -> IO ()) -> a
+    -> IO (Maybe Int)
+fill !prepTL !numCap !initSize rndKey ins struct = do
+    let abort = timeout $ prepTL * 1000
     -- parallel data structure filling
     timing abort initSize numCap numCap $ rndKey >>= ins struct
 
@@ -115,41 +124,70 @@ benchmark :: BenchSetting a Int -> IO (BenchReport a Int)
 benchmark setting@(
     BenchSetting (BenchStruct name cons insOp delOp)
                  (BenchEnv workersNum capsNum)
-                 (BenchProc !initSize !insRate !runsNum)
+                 (BenchProc !initSize !insRate !runsNum !prepTL)
                  benchCase
   ) = event ("series of runs with: " ++ name) $ do
     g <- createSystemRandom
     let rndInt = uniform g :: IO Int
         rndPerc = (`mod` 101) `fmap` rndInt
+
         buildOp = opInsDel rndInt rndPerc insRate insOp delOp
-        oneBench :: (Int -> Int -> IO () -> IO (Maybe Int)) -> IO (Maybe Int)
-        oneBench bencher = event ("benchmark with: " ++ name) $ do
+
+        oneRun :: BenchFunc () -> IO OneBenchStatus
+        oneRun bencher = event ("benchmark with: " ++ name) $ do
             struct <- cons
-            let fillAct = fill capsNum initSize rndInt insOp struct
+            let fillAct = fill prepTL capsNum initSize rndInt insOp struct
                 benchAct = bencher workersNum capsNum $ buildOp struct
-            tle <- event "filling structure" fillAct
-            performMajorGC
-            res <- case tle of Nothing -> return Nothing
-                               _ -> event "bench itself" benchAct
-            performMajorGC
-            return res
+                fillAct' = event "filling structure" fillAct
+                benchAct' = event "bench itself" benchAct
 
-        bench (ThroughputCase period) = do
-            let bench' = oneBench $ throughput period
-                abortedMsg = AbortedRes "init >1000ms"
-            rs <- catMaybes `fmap` replicateM runsNum bench'
-            return $! case rs of
-                [] -> abortedMsg
-                _ -> uncurry ThroughputRes $ res2disp rs
+            tle <- fillAct'
+            performMajorGC
+            case tle of
+                Nothing -> return PrepFail
+                _ -> benchAct' >>= \case
+                        Nothing -> return BenchFail
+                        (Just res) -> return $ BenchSucc res
 
-        bench (TimingCase opCount timelimit) = do
+        manyRuns
+            :: String
+            -> BenchFunc ()
+            -> IO (Either String (Int, Int))
+        manyRuns benchFailMsg bencher = do
+            rowRes <- replicateM runsNum $ oneRun bencher
+            let prepFailed = find (\case PrepFail -> True; _ -> False) rowRes
+                prepFailMsg = "prep >" ++ show prepTL ++ "ms"
+            case prepFailed of
+              (Just PrepFail) -> return $ Left prepFailMsg
+              _ -> do
+                let succRes = filter (\case BenchSucc _ -> True; _ -> False) rowRes
+                if 100 * length succRes < 75 * length rowRes -- if more than 25% failures
+                then return $ Left benchFailMsg
+                else return . Right . res2disp $ map (\(BenchSucc r) -> r) succRes
+
+        manyBenchCases
+            :: String
+            -> [a]
+            -> (a -> BenchFunc ())
+            -> ([(Int, Int)] -> BenchResult)
+            -> IO BenchResult
+        manyBenchCases benchFailMsg params bencher' wrapper = do
+            rowRes <- forM params $ \param ->
+                manyRuns benchFailMsg (bencher' param)
+            let mapper (Right r) = Just r
+                mapper (Left _) = Nothing
+                succRes = mapMaybe mapper rowRes
+            return $! wrapper succRes
+
+        bench :: BenchCase -> IO BenchResult
+        bench (ThroughputCase periods) =
+            manyBenchCases "" periods throughput ThroughputRes
+
+        bench (TimingCase opCounts timelimit) = do
             let abortOnTimeout = timeout (timelimit * 1000)
-                bench' = oneBench $ timing abortOnTimeout opCount
-                abortedMsg = AbortedRes $ ">" ++ show timelimit ++ "ms"
-            rs <- catMaybes `fmap` replicateM runsNum bench'
-            return $! case rs of
-                [] -> abortedMsg
-                _ -> uncurry TimingRes $ res2disp rs
+                benchFailMsg = ">" ++ show timelimit ++ "ms"
+                bencher = timing abortOnTimeout
+            manyBenchCases benchFailMsg opCounts bencher TimingRes
 
     performMajorGC
     BenchReport setting `fmap` bench benchCase

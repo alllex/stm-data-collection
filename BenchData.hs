@@ -36,21 +36,22 @@ data BenchEnv = BenchEnv {
 data BenchProc = BenchProc {
     getInitSize :: {-# UNPACK #-} !Int,
     getInsRate  :: {-# UNPACK #-} !Int,
-    getCountOfRuns :: {-# UNPACK #-} !Int
+    getCountOfRuns :: {-# UNPACK #-} !Int,
+    getPrepTimeLimit :: {-# UNPACK #-} !Int
 } deriving Show
 
 data BenchCase
     = ThroughputCase {
-        getPeriod :: {-# UNPACK #-} !Int -- period in ms
+        getPeriods :: [Int] -- periods in ms
     }
     | TimingCase {
-        getCountOfOps :: {-# UNPACK #-} !Int, -- amount of operations to be performed
+        getCountsOfOps :: [Int], -- amount of operations to be performed
         getAbortionTimeout :: {-# UNPACK #-} !Int -- time before abort in ms
     } deriving Show
 
 data BenchResult
-    = ThroughputRes {-# UNPACK #-} !Int {-# UNPACK #-} !Int
-    | TimingRes {-# UNPACK #-} !Int {-# UNPACK #-} !Int
+    = ThroughputRes [(Int, Int)]
+    | TimingRes [(Int, Int)]
     | AbortedRes String
     deriving Show
 
@@ -96,6 +97,10 @@ parseBenchProc defaultProc = BenchProc
                      <> long "runs"
                      <> help "Number of runs for each implementation"
                     )
+    <*> option auto (value (getPrepTimeLimit defaultProc)
+                     <> long "prep"
+                     <> help "Time limit for preparation"
+                    )
 
 parseBenchCase :: Parser BenchCase
 parseBenchCase = subparser $
@@ -109,13 +114,24 @@ parseBenchCase = subparser $
     )
 
 parseTiming :: Parser BenchCase
-parseTiming = TimingCase
-    <$> argument auto (metavar "N")
-    <*> argument auto (metavar "TIMELIMIT")
+parseTiming = builder
+    <$> argument auto (metavar "TIMELIMIT")
+    <*> argument auto (metavar "N")
+    <*> option auto (value 0 <> long "step")
+    <*> option auto (value (-1) <> long "upto")
+    where
+        builder tl n step nn
+            | nn < 0 = TimingCase [n] tl
+            | otherwise = TimingCase [n, (n+step)..nn] tl
 
 parseThroughput :: Parser BenchCase
-parseThroughput = ThroughputCase
+parseThroughput = builder
     <$> argument auto (metavar "TIMEOUT")
+    <*> option auto (value 0 <> long "step")
+    <*> option auto (value (-1) <> long "upto")
+    where
+        builder n step nn = ThroughputCase $
+            if nn < 0 then [n] else [n, (n+step)..nn]
 
 {- Show instances -}
 
