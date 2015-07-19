@@ -7,10 +7,14 @@ module BenchData (
     BenchCase(ThroughputCase, TimingCase),
     BenchResult(ThroughputRes, TimingRes, AbortedRes),
     BenchReport(BenchReport),
-    buildBenchSetting
+    BenchCaseKind(Thrput, Timing),
+    ShortBenchReport(ShortBenchReport),
+    buildBenchSetting,
+    makeShortReport
 ) where
 
 import Options.Applicative
+import Text.Printf
 
 {- Data Structures -}
 
@@ -59,6 +63,36 @@ data BenchReport a b = BenchReport {
     getSetting :: BenchSetting a b,
     getResult  :: BenchResult
 } deriving Show
+
+data BenchCaseKind = Thrput | Timing
+
+data ShortBenchReport = ShortBenchReport {
+    getStrName :: String,
+    getKind :: BenchCaseKind,
+    getInitSz :: Int,
+    getInsRt :: Int,
+    getCapNum :: Int,
+    getMatch :: [(Int, Int, Int)] -- (param, result, dispertion)
+}
+
+{- Utils -}
+
+makeShortReport (BenchReport setting result) =
+    ShortBenchReport
+        (getName $ getStruct setting)
+        caseKind
+        (getInitSize $ getProc setting)
+        (getInsRate $ getProc setting)
+        (getCountOpCaps $ getEnv setting)
+        match
+    where
+        match = zipWith (\p (r, d) -> (p, r, d)) params results
+        results = case result of
+            TimingRes rs -> rs
+            ThroughputRes rs -> rs
+        (caseKind, params) = case getCase setting of
+            TimingCase ps _ -> (Timing, ps)
+            ThroughputCase ps -> (Thrput, ps)
 
 {- Applicative parsers -}
 
@@ -137,3 +171,15 @@ parseThroughput = builder
 
 instance Show (BenchStruct a b) where
     show (BenchStruct name _ _ _) = name
+
+instance Show ShortBenchReport where
+    show (ShortBenchReport name kind isize irate cn matches) =
+        unlines $ benchHeader : map printMatch matches
+        where
+            (kindName, parUnits, resUnits) = case kind of
+                Thrput -> ("Throughput", "ms", "ops")
+                Timing -> ("Timing", "ops", "ms")
+            benchHeader = printf "%s of %s (size=%d, ins. rate=%d, cpu units=%d)"
+                        kindName name isize irate cn
+            printMatch (p, r, d) = printf "%d%s\t->\t%d +- %d%s"
+                                        p parUnits r d resUnits

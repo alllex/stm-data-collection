@@ -51,7 +51,8 @@ benchOne' (name, PQB qcons) = do
         struct = BenchStruct name cons insOp delOp
         defProc = BenchProc 1000 50 3 1000
     report <- execBenchmark struct defProc
-    print report
+    let shortRep = makeShortReport report
+    print shortRep
 
 
 benchOne :: String -> IO ()
@@ -65,5 +66,5 @@ main :: IO ()
 -- main = mapM_ benchOne
 main = do
     benchOne "coarse-heap-pq"
-    -- benchOne "tarray-pcg-perthread-skiplist-pq"
-    -- benchOne "tarray-pcg-skiplist-pq"
+    benchOne "tarray-pcg-perthread-skiplist-pq"
+    benchOne "tarray-pcg-skiplist-pq"
