@@ -15,6 +15,7 @@ import PriorityQueue.Internals.TArrayPCGSkipListPQ
 import PriorityQueue.Internals.LinkedPCGSkipListPQ
 import PriorityQueue.Internals.TArrayPCGperThreadSLPQ
 import PriorityQueue.Internals.LinkedPCGperThreadSLPQ
+import PriorityQueue.Internals.TArrayPCGSeedPerThreadSLPQ
 
 
 data PQBox = forall q. PriorityQueue q => PQB (STM (q Int ()))
@@ -31,6 +32,7 @@ impls =
   , ("linkedlist-pcg-skiplist-pq", PQB (new :: STM (LinkedPCGSkipListPQ Int ())))
   , ("tarray-pcg-perthread-skiplist-pq", PQB (new :: STM (TArrayPCGperThreadSLPQ Int ())))
   , ("linkedlist-pcg-perthread-skiplist-pq", PQB (new :: STM (LinkedPCGperThreadSLPQ Int ())))
+  , ("tarray-pcg-seed-perthread-skiplist-pq", PQB (new :: STM (TArrayPCGSeedPerThreadSLPQ Int ())))
   ]
 
 implNames :: [String]
@@ -62,9 +64,8 @@ benchOne name =
         Just pqb -> benchOne' (name, pqb)
 
 main :: IO ()
--- main = benchOne "linkedlist-pcg-perthread-skiplist-pq"
--- main = mapM_ benchOne
 main = do
     benchOne "coarse-heap-pq"
     benchOne "tarray-pcg-perthread-skiplist-pq"
     benchOne "tarray-pcg-skiplist-pq"
+    benchOne "tarray-pcg-seed-perthread-skiplist-pq"

@@ -7,16 +7,17 @@ import Control.Monad
 import Data.List(sort, delete)
 
 import PriorityQueue.PriorityQueue
-import PriorityQueue.Internals.ListPQ
-import PriorityQueue.Internals.HeapPQ
-import PriorityQueue.Internals.TListPQ
-import PriorityQueue.Internals.THeapPQ
-import PriorityQueue.Internals.TArraySkipListPQ
-import PriorityQueue.Internals.LinkedSkipListPQ
-import PriorityQueue.Internals.TArrayPCGSkipListPQ
-import PriorityQueue.Internals.LinkedPCGSkipListPQ
-import PriorityQueue.Internals.TArrayPCGperThreadSLPQ
-import PriorityQueue.Internals.LinkedPCGperThreadSLPQ
+-- import PriorityQueue.Internals.ListPQ
+-- import PriorityQueue.Internals.HeapPQ
+-- import PriorityQueue.Internals.TListPQ
+-- import PriorityQueue.Internals.THeapPQ
+-- import PriorityQueue.Internals.TArraySkipListPQ
+-- import PriorityQueue.Internals.LinkedSkipListPQ
+-- import PriorityQueue.Internals.TArrayPCGSkipListPQ
+-- import PriorityQueue.Internals.LinkedPCGSkipListPQ
+-- import PriorityQueue.Internals.TArrayPCGperThreadSLPQ
+-- import PriorityQueue.Internals.LinkedPCGperThreadSLPQ
+import PriorityQueue.Internals.TArrayPCGSeedPerThreadSLPQ
 
 {-   Debug setting   -}
 
@@ -215,4 +216,4 @@ testImpl base cons = hspec $ do
 
 main :: IO ()
 main = do
-  testImpl "Coarse-grained List" (new :: STM (ListPQ  Int Int))
+  testImpl "unboxed seed" (new :: STM (TArrayPCGSeedPerThreadSLPQ Int Int))

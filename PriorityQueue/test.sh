@@ -21,9 +21,11 @@ if [ $? -eq 0 ]; then
 
   ./TestPQThreaded
 
-  rm TestPQThreaded
-  find . -type f -name '*.o' -delete
-  find . -type f -name '*.hi' -delete
+  # rm TestPQThreaded
+  # find . -type f -name '*.o' -delete
+  # find . -type f -name '*.hi' -delete
+  # find . -type f -name '*.dyn_hi' -delete
+  # find . -type f -name '*.dyn_o' -delete
 else
   echo FAIL
 fi
