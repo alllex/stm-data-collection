@@ -14,11 +14,3 @@ cabal.sandbox.config
 *.prof
 *.aux
 *.hp
-temp
-
-*.eventlog
-/priority-queue/Bench
-/priority-queue/Test
-/misc/*.csv
-/misc/counter-benchmark
-*.sublime*

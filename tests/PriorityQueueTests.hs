@@ -6,18 +6,16 @@ import Control.Concurrent.STM
 import Control.Monad
 import Data.List(sort, delete)
 
-import PriorityQueue.PriorityQueue
--- import PriorityQueue.Internals.ListPQ
--- import PriorityQueue.Internals.HeapPQ
--- import PriorityQueue.Internals.TListPQ
--- import PriorityQueue.Internals.THeapPQ
--- import PriorityQueue.Internals.TArraySkipListPQ
--- import PriorityQueue.Internals.LinkedSkipListPQ
--- import PriorityQueue.Internals.TArrayPCGSkipListPQ
--- import PriorityQueue.Internals.LinkedPCGSkipListPQ
--- import PriorityQueue.Internals.TArrayPCGperThreadSLPQ
--- import PriorityQueue.Internals.LinkedPCGperThreadSLPQ
-import PriorityQueue.Internals.TArrayPCGSeedPerThreadSLPQ
+import Data.STM.PriorityQueue.Class
+import Data.STM.PriorityQueue.Internal.ListPQ
+import Data.STM.PriorityQueue.Internal.TListPQ
+import Data.STM.PriorityQueue.Internal.HeapPQ
+import Data.STM.PriorityQueue.Internal.THeapPQ
+import Data.STM.PriorityQueue.Internal.TASLPQ
+import Data.STM.PriorityQueue.Internal.LLSLPQ
+import Data.STM.PriorityQueue.Internal.PTRTASLPQ
+import Data.STM.PriorityQueue.Internal.PTRLLSLPQ
+import Data.STM.PriorityQueue.Internal.PTSTASLPQ
 
 {-   Debug setting   -}
 
@@ -76,7 +74,7 @@ forkNJoin :: [IO a] -> IO ()
 forkNJoin ios = do
   children <- forM ios $ \io -> do
     child <- newEmptyMVar
-    forkFinally io $ \_ -> putMVar child ()
+    _ <- forkFinally io $ \_ -> putMVar child ()
     return child
   forM_ children $ \child -> takeMVar child
 
@@ -216,4 +214,12 @@ testImpl base cons = hspec $ do
 
 main :: IO ()
 main = do
-  testImpl "unboxed seed" (new :: STM (TArrayPCGSeedPerThreadSLPQ Int Int))
+    testImpl "heap-pq" (new :: STM (HeapPQ Int Int))
+    testImpl "list-pq" (new :: STM (ListPQ Int Int))
+    testImpl "llslpq" (new :: STM (LLSLPQ Int Int))
+    testImpl "ptrllslpq" (new :: STM (PTRLLSLPQ Int Int))
+    testImpl "ptrtaslpq" (new :: STM (PTRTASLPQ Int Int))
+    testImpl "ptxtaslpq" (new :: STM (PTSTASLPQ Int Int))
+    testImpl "taslpq" (new :: STM (TASLPQ Int Int))
+    testImpl "theap-pq" (new :: STM (THeapPQ Int Int))
+    testImpl "tlist-pq" (new :: STM (TListPQ Int Int))

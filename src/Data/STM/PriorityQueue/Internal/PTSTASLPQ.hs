@@ -4,8 +4,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module PriorityQueue.Internals.TArrayPCGSeedPerThreadSLPQ(
-    TArrayPCGSeedPerThreadSLPQ
+module Data.STM.PriorityQueue.Internal.PTSTASLPQ(
+    PTSTASLPQ
 ) where
 
 import Data.Array.MArray
@@ -20,7 +20,7 @@ import Data.Word (Word64)
 import System.IO.Unsafe
 import Control.Concurrent
 
-import PriorityQueue.PriorityQueue
+import Data.STM.PriorityQueue.Class
 
 type Nodes k v = TArray Int (Node k v)
 
@@ -31,7 +31,7 @@ data Node k v = Nil
               , getNodes :: Nodes k v
               }
 
-data TArrayPCGSeedPerThreadSLPQ k v = PQ
+data PTSTASLPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
   , getStates    :: U.IOVector R.FrozenGen
@@ -42,7 +42,7 @@ derivingUnbox "FrozenGen"
     [| \fr -> (fst $ R.withFrozen fr R.uniform) :: Word64 |]
     [| R.initFrozen |]
 
-pqNew' :: Ord k => Int -> STM (TArrayPCGSeedPerThreadSLPQ k v)
+pqNew' :: Ord k => Int -> STM (PTSTASLPQ k v)
 pqNew' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar height
@@ -55,7 +55,7 @@ pqNew' height = do
         return statev
   return $ PQ headNodes vHeight states
 
-pqNew :: Ord k => STM (TArrayPCGSeedPerThreadSLPQ k v)
+pqNew :: Ord k => STM (PTSTASLPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
@@ -72,7 +72,7 @@ gen v i = unsafeDupablePerformIO $ do
 chooseLvl :: U.IOVector R.FrozenGen -> Int -> Int -> Int
 chooseLvl v i h = min h $ 1 + truncate (log (gen v i) / logHalf)
 
-pqInsert :: Ord k => TArrayPCGSeedPerThreadSLPQ k v -> k -> v -> STM ()
+pqInsert :: Ord k => PTSTASLPQ k v -> k -> v -> STM ()
 pqInsert (PQ headNodes vHeight states) k v = do
   height <- readTVar vHeight
   prevs <- buildPrevs headNodes height []
@@ -102,12 +102,12 @@ pqInsert (PQ headNodes vHeight states) k v = do
                 writeArray p lvl newNode
                 writeArray nodes lvl nextNode
                 updatePtrs (lvl+1) ps
-            updatePtrs _ [] = error "TArrayPCGSeedPerThreadSLPQ: main layout must be not lower than new one"
+            updatePtrs _ [] = error "PTSTASLPQ: main layout must be not lower than new one"
 
         updatePtrs 1 prevs
 
 
-pqPeekMin :: Ord k => TArrayPCGSeedPerThreadSLPQ k v -> STM v
+pqPeekMin :: Ord k => PTSTASLPQ k v -> STM v
 pqPeekMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
@@ -115,7 +115,7 @@ pqPeekMin (PQ headNodes _ _) = do
     (Node _ vv _) -> readTVar vv
 
 
-pqDeleteMin :: Ord k => TArrayPCGSeedPerThreadSLPQ k v -> STM v
+pqDeleteMin :: Ord k => PTSTASLPQ k v -> STM v
 pqDeleteMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
@@ -126,7 +126,7 @@ pqDeleteMin (PQ headNodes _ _) = do
       readTVar vv
 
 
-instance PriorityQueue TArrayPCGSeedPerThreadSLPQ where
+instance PriorityQueue PTSTASLPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin

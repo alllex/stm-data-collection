@@ -1,11 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 
-module PriorityQueue.Internals.HeapPQ(
+module Data.STM.PriorityQueue.Internal.HeapPQ(
     HeapPQ
 ) where
 
 import Control.Concurrent.STM
-import PriorityQueue.PriorityQueue
+import Data.STM.PriorityQueue.Class
 
 
 data Heap k v = Nil

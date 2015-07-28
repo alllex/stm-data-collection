@@ -1,10 +1,10 @@
 
-module PriorityQueue.Internals.ListPQ(
+module Data.STM.PriorityQueue.Internal.ListPQ(
     ListPQ
 ) where
 
 import Control.Concurrent.STM
-import PriorityQueue.PriorityQueue
+import Data.STM.PriorityQueue.Class
 
 data ListPQ k v = PQ (TVar [(k, v)])
 

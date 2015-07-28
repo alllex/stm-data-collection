@@ -1,5 +1,7 @@
 
-module PriorityQueue.PriorityQueue (PriorityQueue(..)) where
+module Data.STM.PriorityQueue.Class (
+    PriorityQueue(..)
+) where
 
 import Control.Concurrent.STM
 

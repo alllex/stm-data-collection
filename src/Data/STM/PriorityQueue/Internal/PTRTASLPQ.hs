@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module PriorityQueue.Internals.TArrayPCGperThreadSLPQ(
-    TArrayPCGperThreadSLPQ
+module Data.STM.PriorityQueue.Internal.PTRTASLPQ(
+    PTRTASLPQ
 ) where
 
 import Data.Array.MArray
@@ -12,7 +12,7 @@ import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
 import System.IO.Unsafe
 import Control.Concurrent
 
-import PriorityQueue.PriorityQueue
+import Data.STM.PriorityQueue.Class
 
 type Nodes k v = TArray Int (Node k v)
 
@@ -23,14 +23,14 @@ data Node k v = Nil
               , getNodes :: Nodes k v
               }
 
-data TArrayPCGperThreadSLPQ k v = PQ
+data PTRTASLPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
   , getGen       :: TArray Int GenIO
   }
 
 
-pqNew' :: Ord k => Int -> STM (TArrayPCGperThreadSLPQ k v)
+pqNew' :: Ord k => Int -> STM (PTRTASLPQ k v)
 pqNew' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar $ height
@@ -39,7 +39,7 @@ pqNew' height = do
   return $ PQ headNodes vHeight gios'
 
 
-pqNew :: Ord k => STM (TArrayPCGperThreadSLPQ k v)
+pqNew :: Ord k => STM (PTRTASLPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
@@ -50,7 +50,7 @@ chooseLvl g h =
   min h $ 1 + truncate (log x / logHalf)
     where x = unsafePerformIO (uniform g :: IO Float)
 
-pqInsert :: Ord k => TArrayPCGperThreadSLPQ k v -> k -> v -> STM ()
+pqInsert :: Ord k => PTRTASLPQ k v -> k -> v -> STM ()
 pqInsert (PQ headNodes vHeight gios') k v = do
   height <- readTVar vHeight
   prevs <- buildPrevs headNodes height []
@@ -81,12 +81,12 @@ pqInsert (PQ headNodes vHeight gios') k v = do
                 writeArray p lvl newNode
                 writeArray nodes lvl nextNode
                 updatePtrs (lvl+1) ps
-            updatePtrs _ [] = error "TArrayPCGperThreadSLPQ: main layout must be not lower than new one"
+            updatePtrs _ [] = error "PTRTASLPQ: main layout must be not lower than new one"
 
         updatePtrs 1 prevs
 
 
-pqPeekMin :: Ord k => TArrayPCGperThreadSLPQ k v -> STM v
+pqPeekMin :: Ord k => PTRTASLPQ k v -> STM v
 pqPeekMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
@@ -94,7 +94,7 @@ pqPeekMin (PQ headNodes _ _) = do
     (Node _ vv _) -> readTVar vv
 
 
-pqDeleteMin :: Ord k => TArrayPCGperThreadSLPQ k v -> STM v
+pqDeleteMin :: Ord k => PTRTASLPQ k v -> STM v
 pqDeleteMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
@@ -105,7 +105,7 @@ pqDeleteMin (PQ headNodes _ _) = do
       readTVar vv
 
 
-instance PriorityQueue TArrayPCGperThreadSLPQ where
+instance PriorityQueue PTRTASLPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin

@@ -1,11 +1,11 @@
 
-module PriorityQueue.Internals.TListPQ(
+module Data.STM.PriorityQueue.Internal.TListPQ(
     TListPQ
 ) where
 
 import Data.Functor((<$>))
 import Control.Concurrent.STM
-import PriorityQueue.PriorityQueue
+import Data.STM.PriorityQueue.Class
 
 data TNode k v = TNil
                | TCons k v (TVar (TNode k v))

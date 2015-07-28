@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module PriorityQueue.Internals.LinkedPCGSkipListPQ(
-  LinkedPCGSkipListPQ
+module Data.STM.PriorityQueue.Internal.LLSLPQ(
+  LLSLPQ
 ) where
 
 import Control.Monad.STM
@@ -10,7 +10,7 @@ import Control.Concurrent.STM
 import System.IO.Unsafe
 import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
 
-import PriorityQueue.PriorityQueue
+import Data.STM.PriorityQueue.Class
 
 data Node k v
   = Nil
@@ -36,7 +36,7 @@ type TNode k v = TVar (Node k v)
   The first layout is the main layout that is never deleted
   and used for data access and control.
 -}
-data LinkedPCGSkipListPQ k v
+data LLSLPQ k v
   = PQ
   { getTop       :: TNode k v  -- top-node of the main layout
   , getBottom    :: TNode k v  -- bottom-node of the main layout
@@ -62,7 +62,7 @@ buildHeads up' h = do
   writeTVar curr' $ Node undefined undefined up' next' down'
   return (curr', bottom')
 
-pqNew' :: Ord k => Int -> STM (LinkedPCGSkipListPQ k v)
+pqNew' :: Ord k => Int -> STM (LLSLPQ k v)
 pqNew' height = do
   nil' <- newTVar Nil
   (top', bottom') <- buildHeads nil' height
@@ -71,7 +71,7 @@ pqNew' height = do
   return $ PQ top' bottom' height' nil' gio'
 
 
-pqNew :: Ord k => STM (LinkedPCGSkipListPQ k v)
+pqNew :: Ord k => STM (LLSLPQ k v)
 pqNew = pqNew' 16
 
 logHalf :: Float
@@ -82,7 +82,7 @@ chooseLvl g h =
   min h $ 1 + truncate (log x / logHalf)
     where x = unsafePerformIO (uniform g :: IO Float)
 
-pqInsert :: Ord k => LinkedPCGSkipListPQ k v -> k -> v -> STM ()
+pqInsert :: Ord k => LLSLPQ k v -> k -> v -> STM ()
 pqInsert (PQ top' _ height' nil' gio') k v = do
   top <- readTVar top'
   case top of
@@ -123,7 +123,7 @@ pqInsert (PQ top' _ height' nil' gio') k v = do
       insertNode v' curr' prevs (h-1)
     insertNode _ _ [] _ = error "Illegal state: main layout must be not lower than new column"
 
-pqPeekMin :: Ord k => LinkedPCGSkipListPQ k v -> STM v
+pqPeekMin :: Ord k => LLSLPQ k v -> STM v
 pqPeekMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
   case bottom of
@@ -135,7 +135,7 @@ pqPeekMin (PQ _ bottom' _ _ _) = do
         (Node _ v' _ _ _) -> readTVar v'
 
 
-pqDeleteMin :: Ord k => LinkedPCGSkipListPQ k v -> STM v
+pqDeleteMin :: Ord k => LLSLPQ k v -> STM v
 pqDeleteMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
   case bottom of
@@ -158,7 +158,7 @@ pqDeleteMin (PQ _ bottom' _ _ _) = do
                  recDel headUp up
 
 
-instance PriorityQueue LinkedPCGSkipListPQ where
+instance PriorityQueue LLSLPQ where
     new            = pqNew
     insert         = pqInsert
     peekMin        = pqPeekMin
