@@ -3,7 +3,6 @@ module Data.STM.PriorityQueue.Internal.TListPQ(
     TListPQ
 ) where
 
-import Data.Functor((<$>))
 import Control.Concurrent.STM
 import Data.STM.PriorityQueue.Class
 
@@ -58,5 +57,3 @@ instance PriorityQueue TListPQ where
   insert         = pqInsert
   peekMin        = pqPeekMin
   deleteMin      = pqDeleteMin
-
-

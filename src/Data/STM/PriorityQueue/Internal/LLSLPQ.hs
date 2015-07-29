@@ -5,7 +5,6 @@ module Data.STM.PriorityQueue.Internal.LLSLPQ(
 ) where
 
 import Control.Monad.STM
-import Control.Monad
 import Control.Concurrent.STM
 import System.IO.Unsafe
 import System.Random.PCG.Fast (createSystemRandom, uniform, GenIO)
@@ -163,9 +162,3 @@ instance PriorityQueue LLSLPQ where
     insert         = pqInsert
     peekMin        = pqPeekMin
     deleteMin      = pqDeleteMin
-
-
-
-
-
-
