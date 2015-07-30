@@ -1,0 +1,4 @@
+[submodule "pkgs/pcg-random"]
+	path = pkgs/pcg-random
+	url = https://github.com/cchalmers/pcg-random.git
+	branch = pure
