@@ -19,7 +19,7 @@ OPCOUNT_STEP=15000
 OPCOUNT_UPTO=100000
 
 # prepare for benchmarking
-cabal configure --enable-benchmarks && cabal build
+cabal configure --enable-benchmarks && cabal build -j
 
 if [ $? -eq 0 ]; then
 
