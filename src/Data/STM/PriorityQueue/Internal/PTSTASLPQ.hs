@@ -1,8 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Data.STM.PriorityQueue.Internal.PTSTASLPQ(
     PTSTASLPQ
@@ -12,9 +9,9 @@ import Data.Array.MArray
 import Control.Monad.STM
 import Control.Monad
 import Control.Concurrent.STM
-import qualified System.Random.PCG.Fast as R
+import qualified System.Random as SysR
+import qualified System.Random.PCG.Fast.Pure as R
 import qualified Data.Vector.Unboxed.Mutable as U
-import Data.Vector.Unboxed.Deriving
 import System.Random.PCG.Class (sysRandom)
 import Data.Word (Word64)
 import System.IO.Unsafe
@@ -34,13 +31,8 @@ data Node k v = Nil
 data PTSTASLPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
-  , getStates    :: U.IOVector R.FrozenGen
+  , getStates    :: U.IOVector Word64
   }
-
-derivingUnbox "FrozenGen"
-    [t| R.FrozenGen -> Word64 |]
-    [| \fr -> (fst $ R.withFrozen fr R.uniform) :: Word64 |]
-    [| R.initFrozen |]
 
 pqNew' :: Ord k => Int -> STM (PTSTASLPQ k v)
 pqNew' height = do
@@ -49,9 +41,7 @@ pqNew' height = do
   let states = unsafeDupablePerformIO $ do
         cn <- getNumCapabilities
         statev <- U.new cn
-        forM_ [0..cn-1] $ \i -> do
-            s <- sysRandom
-            U.write statev i $ R.initFrozen s
+        forM_ [0..cn-1] $ \i -> sysRandom >>= U.write statev i
         return statev
   return $ PQ headNodes vHeight states
 
@@ -62,24 +52,24 @@ logHalf :: Float
 logHalf = log 0.5
 
 -- Obtains PCG state, generate random Float and store new state
-gen :: U.IOVector R.FrozenGen -> Int -> Float
-gen v i = unsafeDupablePerformIO $ do
-  fr <- U.read v i
-  let (r, fr') = R.withFrozen fr R.uniform
-  U.write v i fr'
-  return r
+gen :: U.IOVector Word64 -> Int -> Float
+gen v !i = unsafeDupablePerformIO $ do
+  st <- U.read v i
+  let st' = R.state st
+      x = fst . SysR.random $ R.initFrozen st
+  U.write v i st'
+  return x
 
-chooseLvl :: U.IOVector R.FrozenGen -> Int -> Int -> Int
-chooseLvl v i h = min h $ 1 + truncate (log (gen v i) / logHalf)
+chooseLvl :: U.IOVector Word64 -> Int -> Int -> Int
+chooseLvl v !i !h = min h $ 1 + truncate (log (gen v i) / logHalf)
 
 pqInsert :: Ord k => PTSTASLPQ k v -> k -> v -> STM ()
 pqInsert (PQ headNodes vHeight states) k v = do
   height <- readTVar vHeight
   prevs <- buildPrevs headNodes height []
-  let getCapNum = do
+  let cn = unsafeDupablePerformIO $ do
         tid <- myThreadId
         fst `fmap` threadCapability tid
-      cn = unsafeDupablePerformIO getCapNum
   let lvl = chooseLvl states cn height
   insertNode lvl prevs
     where

@@ -35,7 +35,7 @@ if [ $? -eq 0 ]; then
                                         --runs=$RUNS                \
                                         --initsize=$INITSIZE        \
                                         --insrate=$INSRATE          \
-                                        +RTS -s -la -K16m -qa -N$NUMCPU"
+                                        +RTS -la -K16m -qa -N$NUMCPU"
         # benchmark timing
         cabal bench --only \
                     --benchmark-options="timing $TIMELIMIT $OPCOUNT_START   \
@@ -44,7 +44,7 @@ if [ $? -eq 0 ]; then
                                         --runs=$RUNS                        \
                                         --initsize=$INITSIZE                \
                                         --insrate=$INSRATE                  \
-                                        +RTS -s -la -K16m -qa -N$NUMCPU"
+                                        +RTS -la -K16m -qa -N$NUMCPU"
     done
 else
   echo FAILURE on build
