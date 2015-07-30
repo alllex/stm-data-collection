@@ -10,9 +10,8 @@ if [ $? -eq 0 ]; then
     echo --------------------------------------
     echo Creating sandboxes
     echo --------------------------------------
-    PCG_RANDOM_PATH=pkgs/pcg-random
     cabal sandbox init --sandbox . 
-    cabal sandbox add-source $PCG_RANDOM_PATH
+    cabal sandbox add-source pkgs/pcg-random
 
     echo --------------------------------------
     echo Installing dependencies

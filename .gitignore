@@ -18,11 +18,11 @@ cabal.sandbox.config
 *.eventlog
 
 # ignore for packages with supplied sources
-pkgs/*/bin
-pkgs/*/lib
-pkgs/*/logs
-pkgs/*/packages
-pkgs/*/share
-pkgs/*/*.conf.d
-pkgs/*/add-source-timestamps
-pkgs/*/world
+bin
+lib
+logs
+packages
+share
+*.conf.d
+add-source-timestamps
+world
