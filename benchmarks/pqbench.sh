@@ -21,31 +21,31 @@ OPCOUNT_UPTO=100000
 # prepare for benchmarking
 cabal configure --enable-benchmarks && cabal build -j
 
-if [ $? -eq 0 ]; then
-
-    # iterating through number of CPUs enabled for benchmark
-    for NUMCPU in "${NUMCPUS[@]}"
-    do
-
-        # benchmark throughput
-        cabal bench --only \
-                    --benchmark-options="throughput $TIMEOUT_START  \
-                                        --step=$TIMEOUT_STEP        \
-                                        --upto=$TIMEOUT_UPTO        \
-                                        --runs=$RUNS                \
-                                        --initsize=$INITSIZE        \
-                                        --insrate=$INSRATE          \
-                                        +RTS -la -K16m -qa -N$NUMCPU"
-        # benchmark timing
-        cabal bench --only \
-                    --benchmark-options="timing $TIMELIMIT $OPCOUNT_START   \
-                                        --step=$OPCOUNT_STEP                \
-                                        --upto=$OPCOUNT_UPTO                \
-                                        --runs=$RUNS                        \
-                                        --initsize=$INITSIZE                \
-                                        --insrate=$INSRATE                  \
-                                        +RTS -la -K16m -qa -N$NUMCPU"
-    done
-else
+if [ $? -ne 0 ]; then
   echo FAILURE on build
+  exit
 fi
+
+# iterating through number of CPUs enabled for benchmark
+for NUMCPU in "${NUMCPUS[@]}"
+do
+
+    # benchmark throughput
+    cabal bench --only \
+                --benchmark-options="throughput $TIMEOUT_START  \
+                                    --step=$TIMEOUT_STEP        \
+                                    --upto=$TIMEOUT_UPTO        \
+                                    --runs=$RUNS                \
+                                    --initsize=$INITSIZE        \
+                                    --insrate=$INSRATE          \
+                                    +RTS -K16m -qa -N$NUMCPU"
+    # benchmark timing
+    cabal bench --only \
+                --benchmark-options="timing $TIMELIMIT $OPCOUNT_START   \
+                                    --step=$OPCOUNT_STEP                \
+                                    --upto=$OPCOUNT_UPTO                \
+                                    --runs=$RUNS                        \
+                                    --initsize=$INITSIZE                \
+                                    --insrate=$INSRATE                  \
+                                    +RTS -K16m -qa -N$NUMCPU"
+done

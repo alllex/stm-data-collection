@@ -16,6 +16,7 @@ cabal.sandbox.config
 *.hp
 
 *.eventlog
+perfdata
 
 # ignore for packages with supplied sources
 bin
