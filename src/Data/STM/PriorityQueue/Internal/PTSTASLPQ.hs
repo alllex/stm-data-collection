@@ -9,12 +9,11 @@ import Data.Array.MArray
 import Control.Monad.STM
 import Control.Monad
 import Control.Concurrent.STM
-import qualified System.Random as SysR
 import qualified System.Random.PCG.Fast.Pure as R
 import qualified Data.Vector.Unboxed.Mutable as U
 import System.Random.PCG.Class (sysRandom)
-import Data.Word (Word64)
-import System.IO.Unsafe
+import Data.Word (Word64, Word32)
+import System.IO.Unsafe (unsafeDupablePerformIO)
 import Control.Concurrent
 
 import Data.STM.PriorityQueue.Class
@@ -48,20 +47,23 @@ pqNew' height = do
 pqNew :: Ord k => STM (PTSTASLPQ k v)
 pqNew = pqNew' 16
 
+mbw32f :: Float
+mbw32f = fromIntegral (maxBound :: Word32)
+
 logHalf :: Float
 logHalf = log 0.5
 
--- Obtains PCG state, generate random Float and store new state
-gen :: U.IOVector Word64 -> Int -> Float
+-- Obtains PCG state, generate random value and store new state
+gen :: U.IOVector Word64 -> Int -> Word32
 gen v !i = unsafeDupablePerformIO $ do
   st <- U.read v i
-  let st' = R.state st
-      x = fst . SysR.random $ R.initFrozen st
+  let (R.P st' x) = R.pair st
   U.write v i st'
   return x
 
 chooseLvl :: U.IOVector Word64 -> Int -> Int -> Int
-chooseLvl v !i !h = min h $ 1 + truncate (log (gen v i) / logHalf)
+chooseLvl v !i !h = min h $ (+1) $ truncate $ log x / logHalf
+    where x = fromIntegral (gen v i) / mbw32f
 
 pqInsert :: Ord k => PTSTASLPQ k v -> k -> v -> STM ()
 pqInsert (PQ headNodes vHeight states) k v = do

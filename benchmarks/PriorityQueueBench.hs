@@ -61,7 +61,7 @@ benchOne name =
 
 main :: IO ()
 main = do
-    benchOne "coarse-heap-pq"
-    benchOne "tarray-pcg-perthread-skiplist-pq"
-    benchOne "tarray-pcg-skiplist-pq"
+    -- benchOne "coarse-heap-pq"
+    -- benchOne "tarray-pcg-perthread-skiplist-pq"
+    -- benchOne "tarray-pcg-skiplist-pq"
     benchOne "tarray-pcg-seed-perthread-skiplist-pq"
