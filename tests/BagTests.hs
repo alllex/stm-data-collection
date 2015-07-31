@@ -6,7 +6,7 @@ import Control.Monad
 
 import Data.STM.Bag.Class as Bag
 import Data.STM.Bag.Internal.ListBag
-
+import Data.STM.Bag.Internal.TListBag
 
 addTakeOne :: Bag.Bag b => STM (b Int) -> [Int] -> IO ()
 addTakeOne _ [] = return ()
@@ -75,3 +75,4 @@ test name bagCons = hspec $
 main :: IO ()
 main = do
     test "list" (new :: STM (ListBag Int))
+    test "tlist" (new :: STM (TListBag Int))
