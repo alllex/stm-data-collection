@@ -33,14 +33,19 @@ data PTSTASLPQ k v = PQ
   , getStates    :: U.IOVector Word64
   }
 
+cacheFactor :: Int
+cacheFactor = 8
+
 pqNew' :: Ord k => Int -> STM (PTSTASLPQ k v)
 pqNew' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar height
   let states = unsafeDupablePerformIO $ do
         cn <- getNumCapabilities
-        statev <- U.new cn
-        forM_ [0..cn-1] $ \i -> sysRandom >>= U.write statev i
+        statev <- U.new (cn * cacheFactor)
+        forM_ [0..cn-1] $ \i -> do
+            seed <- sysRandom
+            U.write statev (i * cacheFactor) seed
         return statev
   return $ PQ headNodes vHeight states
 
@@ -56,9 +61,10 @@ logHalf = log 0.5
 -- Obtains PCG state, generate random value and store new state
 gen :: U.IOVector Word64 -> Int -> Word32
 gen v !i = unsafeDupablePerformIO $ do
-  st <- U.read v i
+  let i' = i * cacheFactor
+  st <- U.read v i'
   let (R.P st' x) = R.pair st
-  U.write v i st'
+  U.write v i' st'
   return x
 
 chooseLvl :: U.IOVector Word64 -> Int -> Int -> Int

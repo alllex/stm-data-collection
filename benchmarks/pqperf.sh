@@ -1,25 +1,28 @@
 #!/bin/bash
 
-function timestamp {
-    echo "$(date +%Y%m%d.%H%M%S)"
-}
+CPUS=$1
 
-cabal configure --enable-benchmarks && cabal build -j 2> /dev/null
+echo Configuring and building package
+cabal configure --enable-benchmarks && cabal build -j &> /dev/null
 if [ $? -ne 0 ]; then
     echo FAILURE on build
-    exit
+    exit $?
 fi
 
 PERF_DIR=perfdata
 PERF_DATA=perf.data
-PERF_PROG=./dist/build/pqueue-bench/pqueue-bench
-perf record -a $PERF_PROG 
-if [ ! `ls | grep $PERF_DATA` ]; then
-    echo Something went wrong...
-    exit
-fi
-
-if [ ! -d "$PERF_DIR" ]; then
-    mkdir $PERF_DIR
-fi
-mv $PERF_DATA perfdata/pqperf.$(timestamp).data
+PERF_PROG=dist/build/pqueue-bench/pqueue-bench
+echo Start perf
+sudo perf stat -a \
+            -e cache-misses \
+            -e L1-dcache-load-misses \
+            -e L1-dcache-store-misses \
+            -e L1-dcache-prefetch-misses \
+            -e L1-icache-load-misses \
+    ./$PERF_PROG throughput 400 \
+                            --step=200 \
+                            --upto=800              \
+                            --runs=10               \
+                            --initsize=10000        \
+                            --insrate=50            \
+                            +RTS -N$CPUS
