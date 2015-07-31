@@ -28,7 +28,10 @@ library
                         Data.STM.PriorityQueue.Internal.PTSTASLPQ,
 
                         Data.STM.Bag.Internal.ListBag,
-                        Data.STM.Bag.Internal.TListBag
+                        Data.STM.Bag.Internal.TListBag,
+                        Data.STM.Bag.Internal.RoundRobinBag,
+                        Data.STM.Bag.Internal.PTLB,
+                        Data.STM.Bag.Internal.PTTLB
 
   build-depends:        base >=4.8 && <4.9, stm >=2.4 && <2.5,
                         array >=0.5 && <0.6, vector >=0.11 && <0.12,

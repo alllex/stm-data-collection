@@ -21,7 +21,15 @@ bTake (B b') = do
         [] -> retry
         (v:vs) -> writeTVar b' vs >> return v
 
+bIsEmpty :: ListBag v -> STM Bool
+bIsEmpty (B b') = do
+    b <- readTVar b'
+    case b of
+        [] -> return True
+        _ -> return False
+
 instance Bag ListBag where
     new  = bNew
     add  = bAdd
     take = bTake
+    isEmpty = bIsEmpty

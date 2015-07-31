@@ -8,6 +8,8 @@ import Benchmark
 import Data.STM.Bag.Class as Bag
 import Data.STM.Bag.Internal.ListBag
 import Data.STM.Bag.Internal.TListBag
+import Data.STM.Bag.Internal.PTLB
+import Data.STM.Bag.Internal.PTTLB
 
 data Box = forall b. Bag.Bag b => Box (STM (b Int))
 
@@ -34,16 +36,20 @@ benchOne' (name, Box bcons) = do
 benchOne :: String -> IO ()
 benchOne name =
     case findImpl name of
-        Nothing -> error "Unknown implementation"
+        Nothing -> error $ "Unknown implementation: " ++ name
         Just box -> benchOne' (name, box)
 
 impls :: [(String, Box)]
 impls =
-  [ ("coarse-list-bag", Box (new :: STM (ListBag Int )))
-  , ("fine-list-bag",   Box (new :: STM (TListBag Int )))
+  [ ("coarse-list-bag", Box (new :: STM (ListBag Int)))
+  , ("fine-list-bag",   Box (new :: STM (TListBag Int)))
+  , ("per-thread-list-bag",     Box (new :: STM (PTLB Int)))
+  , ("per-thread-tlist-bag",    Box (new :: STM (PTTLB Int)))
   ]
 
 main :: IO ()
 main = do
     benchOne "coarse-list-bag"
     benchOne "fine-list-bag"
+    benchOne "per-thread-list-bag"
+    benchOne "per-thread-tlist-bag"
