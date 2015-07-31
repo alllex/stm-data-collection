@@ -15,34 +15,33 @@ import Data.STM.PriorityQueue.Internal.PTRTASLPQ
 import Data.STM.PriorityQueue.Internal.PTRLLSLPQ
 import Data.STM.PriorityQueue.Internal.PTSTASLPQ
 
+data Box = forall q. PriorityQueue q => Box (STM (q Int ()))
 
-data PQBox = forall q. PriorityQueue q => PQB (STM (q Int ()))
-
-impls :: [(String, PQBox)]
+impls :: [(String, Box)]
 impls =
-  [ ("coarse-list-pq",  PQB (new :: STM (ListPQ Int ())))
-  , ("fine-list-pq", PQB (new :: STM (TListPQ Int ())))
-  , ("coarse-heap-pq",  PQB (new :: STM (HeapPQ Int ())))
-  , ("fine-heap-pq", PQB (new :: STM (THeapPQ Int ())))
-  , ("tarray-pcg-skiplist-pq", PQB (new :: STM (TASLPQ Int ())))
-  , ("linkedlist-pcg-skiplist-pq", PQB (new :: STM (LLSLPQ Int ())))
-  , ("tarray-pcg-perthread-skiplist-pq", PQB (new :: STM (PTRTASLPQ Int ())))
-  , ("linkedlist-pcg-perthread-skiplist-pq", PQB (new :: STM (PTRLLSLPQ Int ())))
-  , ("tarray-pcg-seed-perthread-skiplist-pq", PQB (new :: STM (PTSTASLPQ Int ())))
+  [ ("coarse-list-pq",  Box (new :: STM (ListPQ Int ())))
+  , ("fine-list-pq", Box (new :: STM (TListPQ Int ())))
+  , ("coarse-heap-pq",  Box (new :: STM (HeapPQ Int ())))
+  , ("fine-heap-pq", Box (new :: STM (THeapPQ Int ())))
+  , ("tarray-pcg-skiplist-pq", Box (new :: STM (TASLPQ Int ())))
+  , ("linkedlist-pcg-skiplist-pq", Box (new :: STM (LLSLPQ Int ())))
+  , ("tarray-pcg-perthread-skiplist-pq", Box (new :: STM (PTRTASLPQ Int ())))
+  , ("linkedlist-pcg-perthread-skiplist-pq", Box (new :: STM (PTRLLSLPQ Int ())))
+  , ("tarray-pcg-seed-perthread-skiplist-pq", Box (new :: STM (PTSTASLPQ Int ())))
   ]
 
 implNames :: [String]
 implNames = map fst impls
 
-findImpl :: String -> Maybe PQBox
+findImpl :: String -> Maybe Box
 findImpl name = find impls
     where find [] = Nothing
           find ((name', impl):is) =
             if name == name' then Just impl
             else find is
 
-benchOne' :: (String, PQBox) -> IO ()
-benchOne' (name, PQB qcons) = do
+benchOne' :: (String, Box) -> IO ()
+benchOne' (name, Box qcons) = do
     let cons = atomically qcons
         insOp q key = atomically $ insert q key ()
         delOp q = atomically $ deleteMin q
@@ -51,7 +50,6 @@ benchOne' (name, PQB qcons) = do
     report <- execBenchmark struct defProc
     let shortRep = makeShortReport report
     print shortRep
-
 
 benchOne :: String -> IO ()
 benchOne name =

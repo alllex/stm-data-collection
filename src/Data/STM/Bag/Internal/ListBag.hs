@@ -6,7 +6,7 @@ module Data.STM.Bag.Internal.ListBag(
 import Control.Concurrent.STM
 import Data.STM.Bag.Class
 
-data ListBag v = B (TVar [v])
+data ListBag v = B (TVar [v]) -- stack behavior
 
 bNew :: STM (ListBag v)
 bNew = B `fmap` newTVar []
