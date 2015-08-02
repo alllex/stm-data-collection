@@ -6,7 +6,6 @@ FILENAME="src/Data/STM/PriorityQueue/Internal/PTSTASLPQ.hs"
 DEF_FACTOR=8
 
 function changeFactor {
-        echo "ARGUMENT: $1"
         sed -i -- "s/cacheFactor = [0-9]\+/cacheFactor = $1/g" $FILENAME
 }
 
@@ -20,9 +19,9 @@ do
         ./benchmarks/pqperf.sh $NUMCPU | egrep 'Throughput|ms'
         if [ $? -ne 0 ]; then
             echo Something went wrong...
-            changeFactor DEF_FACTOR
+            changeFactor $DEF_FACTOR
             exit $?
         fi
     done
 done
-changeFactor DEF_FACTOR
+changeFactor $DEF_FACTOR
