@@ -39,57 +39,60 @@ execBenchmark strt defProc = do
     setting <- buildBenchSetting strt env defProc
     benchmark setting
 
-type BenchFunc a = Int -> Int -> IO a -> IO (Maybe Int)
+type BenchFunc a = Int -> Int -> [IO a] -> IO (Maybe Int)
 
 timing :: (IO () -> IO (Maybe ())) -> Int -> BenchFunc a
-timing abort !opCount !numCap !numWork op = do
+timing abort !opCount !numCap !numWork ops = do
 
-  let !perWorker = opCount `div` numWork
-      !fstWorker = perWorker + (opCount `mod` numWork)
-      work' n = forM_ [1..n] $ const op
-      work 1 = work' fstWorker
-      work _ = work' perWorker
-      wi = [1..numWork]
+    let iops = [ (i, op) | op <- ops, i <- [0..numWork-1] ]
+        !perWorker = opCount `div` numWork
+        !fstWorker = perWorker + (opCount `mod` numWork)
+        work 0 = replicateM_ fstWorker
+        work _ = replicateM_ perWorker
 
-  (cws, vs) <- fmap unzip . forM wi $ \i -> do
-    v <- newEmptyMVar
-    return ((i `mod` numCap, work i >> putMVar v ()), v)
+    (cws, flags) <- fmap unzip . forM iops $ \(i, op) -> do
+        flag <- newEmptyMVar
+        let cap = i `mod` numCap
+            wrappedWork = work i op >> putMVar flag ()
+        return ((cap, wrappedWork), flag)
 
-  performMajorGC
-  traceMarkerIO "Right before timing benchmark start"
+    performMajorGC
+    traceMarkerIO "Right before timing benchmark start"
 
-  startTime <- getTime
-  tle <- abort $ do
-    forM_ cws $ uncurry forkOn
-    mapM_ takeMVar vs
-  stopTime <- getTime
+    startTime <- getTime
+    tle <- abort $ do
+        forM_ cws $ uncurry forkOn
+        mapM_ takeMVar flags
+    stopTime <- getTime
 
-  let dt = stopTime - startTime
-  return $ case tle of
-      Nothing -> Nothing
-      _ -> Just $! round $ dt * 1000
+    let dt = stopTime - startTime
+    return $ case tle of
+        Nothing -> Nothing
+        _ -> Just $! round $ dt * 1000
+
 
 
 throughput :: Int -> BenchFunc a
-throughput !period !numCap !numWork qop = do
+throughput !period !numCap !numWork ops = do
 
-  cs <- replicateM numWork $ newIORef 0
-  (cws, vs) <- fmap unzip . forM (zip cs [0..numWork]) $ \(c, i) -> do
-    v <- newEmptyMVar
-    let work = forever $ qop >> modifyIORef' c (+1)
-        wrappedWork = finally work (putMVar v ())
-        cap = i `mod` numCap
-    return ((cap, wrappedWork), v)
+    let iops = [ (i, op) | op <- ops, i <- [0..numWork-1] ]
+    (cs, cws, flags) <- fmap unzip3 $ forM iops $ \(i, op) -> do
+        counter <- newIORef 0
+        flag <- newEmptyMVar
+        let work = forever $ op >> modifyIORef' counter (+1)
+            wrappedWork = finally work (putMVar flag ())
+            cap = i `mod` numCap
+        return (counter, (cap, wrappedWork), flag)
 
-  performMajorGC
-  traceMarkerIO "Right before throughput benchmark start"
+    performMajorGC
+    traceMarkerIO "Right before throughput benchmark start"
 
-  ts <- forM cws $ uncurry forkOn
-  threadDelay $ period * 1000
-  mapM_ killThread ts
-  mapM_ takeMVar vs
+    ts <- forM cws $ uncurry forkOn
+    threadDelay $ period * 1000
+    mapM_ killThread ts
+    mapM_ takeMVar flags
 
-  (Just . sum) `fmap` mapM readIORef cs
+    (Just . sum) `fmap` mapM readIORef cs
 
 res2disp :: [Int] -> (Int, Int)
 res2disp !rs = (mean, d)
@@ -113,12 +116,13 @@ opInsDel rndKey rndPer !insRate ins del struct = do
 
 fill
     :: Int -> Int -> Int
-    -> IO Int -> (a -> Int -> IO ()) -> a
+    -> IO Int -> (a -> Int -> IO ()) -> [a]
     -> IO (Maybe Int)
-fill !prepTL !numCap !initSize rndKey ins struct = do
+fill !prepTL !numCap !initSize rndKey ins structs = do
     let abort = timeout $ prepTL * 1000
+        insOps = [rndKey >>= ins s | s <- structs]
     -- parallel data structure filling
-    timing abort initSize numCap numCap $ rndKey >>= ins struct
+    timing abort initSize numCap numCap insOps
 
 benchmark :: BenchSetting a Int -> IO (BenchReport a Int)
 benchmark setting@(
@@ -133,11 +137,11 @@ benchmark setting@(
 
         buildOp = opInsDel rndInt rndPerc insRate insOp delOp
 
-        oneRun :: BenchFunc () -> IO OneBenchStatus
-        oneRun bencher = event ("benchmark with: " ++ name) $ do
-            struct <- cons
-            let fillAct = fill prepTL capsNum initSize rndInt insOp struct
-                benchAct = bencher workersNum capsNum $ buildOp struct
+        oneRun :: BenchFunc () -> Int -> IO OneBenchStatus
+        oneRun bencher scale = event ("benchmark with: " ++ name) $ do
+            structs <- replicateM scale cons
+            let fillAct = fill prepTL capsNum initSize rndInt insOp structs
+                benchAct = bencher workersNum capsNum $ map buildOp structs
                 fillAct' = event "filling structure" fillAct
                 benchAct' = event "bench itself" benchAct
 
@@ -152,9 +156,10 @@ benchmark setting@(
         manyRuns
             :: String
             -> BenchFunc ()
+            -> Int -- scale
             -> IO (Either String (Int, Int))
-        manyRuns benchFailMsg bencher = do
-            rowRes <- replicateM runsNum $ oneRun bencher
+        manyRuns benchFailMsg bencher scale = do
+            rowRes <- replicateM runsNum $ oneRun bencher scale
             let prepFailed = find (\case PrepFail -> True; _ -> False) rowRes
                 prepFailMsg = "prep >" ++ show prepTL ++ "ms"
             case prepFailed of
@@ -170,24 +175,25 @@ benchmark setting@(
             -> [a]
             -> (a -> BenchFunc ())
             -> ([(Int, Int)] -> BenchResult)
+            -> Int -- scale
             -> IO BenchResult
-        manyBenchCases benchFailMsg params bencher' wrapper = do
+        manyBenchCases benchFailMsg params bencher' wrapper scale = do
             rowRes <- forM params $ \param ->
-                manyRuns benchFailMsg (bencher' param)
+                manyRuns benchFailMsg (bencher' param) scale
             let mapper (Right r) = Just r
                 mapper (Left _) = Nothing
                 succRes = mapMaybe mapper rowRes
             return $! wrapper succRes
 
         bench :: BenchCase -> IO BenchResult
-        bench (ThroughputCase periods) =
-            manyBenchCases "" periods throughput ThroughputRes
+        bench (ThroughputCase scale periods) =
+            manyBenchCases "" periods throughput ThroughputRes scale
 
         bench (TimingCase opCounts timelimit) = do
             let abortOnTimeout = timeout (timelimit * 1000)
                 benchFailMsg = ">" ++ show timelimit ++ "ms"
                 bencher = timing abortOnTimeout
-            manyBenchCases benchFailMsg opCounts bencher TimingRes
+            manyBenchCases benchFailMsg opCounts bencher TimingRes 1
 
     performMajorGC
     BenchReport setting `fmap` bench benchCase

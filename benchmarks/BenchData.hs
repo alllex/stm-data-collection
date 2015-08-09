@@ -46,6 +46,7 @@ data BenchProc = BenchProc {
 
 data BenchCase
     = ThroughputCase {
+        getScale   :: Int,
         getPeriods :: [Int] -- periods in ms
     }
     | TimingCase {
@@ -94,7 +95,7 @@ makeShortReport (BenchReport setting result) =
             ThroughputRes rs -> rs
         (caseKind, params) = case getCase setting of
             TimingCase ps _ -> (Timing, ps)
-            ThroughputCase ps -> (Thrput, ps)
+            ThroughputCase _ ps -> (Thrput, ps)
 
 {- Applicative parsers -}
 
@@ -165,8 +166,9 @@ parseThroughput = builder
     <$> argument auto (metavar "TIMEOUT")
     <*> option auto (value 0 <> long "step")
     <*> option auto (value (-1) <> long "upto")
+    <*> option auto (value 1 <> long "scale")
     where
-        builder n step nn = ThroughputCase $
+        builder n step nn scale = ThroughputCase scale $
             if nn < 0 then [n] else [n, (n+step)..nn]
 
 {- Show instances -}

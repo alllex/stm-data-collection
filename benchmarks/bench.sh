@@ -5,7 +5,7 @@ BENCH_NAME=$1
 
 # common benchmark parameters
 RUNS=10
-INITSIZE=25000
+INITSIZE=20000
 INSRATE=50
 NUMCPUS=(1 2 4)
 
@@ -37,17 +37,18 @@ do
                 --benchmark-options="throughput $TIMEOUT_START  \
                                     --step=$TIMEOUT_STEP        \
                                     --upto=$TIMEOUT_UPTO        \
+                                    --scale=$NUMCPU             \
                                     --runs=$RUNS                \
                                     --initsize=$INITSIZE        \
                                     --insrate=$INSRATE          \
                                     +RTS -K16m -qa -N$NUMCPU"
-    # benchmark timing
-    cabal bench $BENCH_NAME --only \
-                --benchmark-options="timing $TIMELIMIT $OPCOUNT_START   \
-                                    --step=$OPCOUNT_STEP                \
-                                    --upto=$OPCOUNT_UPTO                \
-                                    --runs=$RUNS                        \
-                                    --initsize=$INITSIZE                \
-                                    --insrate=$INSRATE                  \
-                                    +RTS -K16m -qa -N$NUMCPU"
+    # # benchmark timing
+    # cabal bench $BENCH_NAME --only \
+    #             --benchmark-options="timing $TIMELIMIT $OPCOUNT_START   \
+    #                                 --step=$OPCOUNT_STEP                \
+    #                                 --upto=$OPCOUNT_UPTO                \
+    #                                 --runs=$RUNS                        \
+    #                                 --initsize=$INITSIZE                \
+    #                                 --insrate=$INSRATE                  \
+    #                                 +RTS -K16m -qa -N$NUMCPU"
 done
