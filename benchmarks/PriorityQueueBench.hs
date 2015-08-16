@@ -40,26 +40,40 @@ findImpl name = find impls
             if name == name' then Just impl
             else find is
 
-benchOne' :: (String, Box) -> IO ()
+benchOne' :: (String, Box) -> IO ShortBenchReport
 benchOne' (name, Box qcons) = do
     let cons = atomically qcons
         insOp q key = atomically $ insert q key ()
         delOp q = atomically $ deleteMin q
         struct = BenchStruct name cons insOp delOp
-        defProc = BenchProc 1000 50 3 1000
+        defProc = BenchProc 1000 50 3 1000 False
     report <- execBenchmark struct defProc
-    let shortRep = makeShortReport report
-    print shortRep
+    return $ makeShortReport report
 
-benchOne :: String -> IO ()
+benchOne :: String -> IO ShortBenchReport
 benchOne name =
     case findImpl name of
-        Nothing -> error "Unknown implementation"
+        Nothing -> error "PQ Bench: unknown implementation"
         Just pqb -> benchOne' (name, pqb)
+
+
+toBenchNames :: [String]
+toBenchNames =
+    [ "coarse-heap-pq"
+    , "tarray-pcg-perthread-skiplist-pq"
+    , "tarray-pcg-skiplist-pq"
+    , "tarray-pcg-seed-perthread-skiplist-pq"
+    ]
+
+composedBench :: [String] -> IO ComposedReport
+composedBench names = fmap makeComposedReport $ sequence $ map benchOne names
 
 main :: IO ()
 main = do
-    -- benchOne "coarse-heap-pq"
-    -- benchOne "tarray-pcg-perthread-skiplist-pq"
-    -- benchOne "tarray-pcg-skiplist-pq"
-    benchOne "tarray-pcg-seed-perthread-skiplist-pq"
+    composedRep <- composedBench toBenchNames
+    let (toFile, stamp, text) = printedTable "pq-bench" composedRep
+        filename = stamp ++ ".log"
+    if toFile then
+        writeFile filename text
+    else
+        putStrLn text

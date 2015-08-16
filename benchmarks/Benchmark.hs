@@ -128,7 +128,7 @@ benchmark :: BenchSetting a Int -> IO (BenchReport a Int)
 benchmark setting@(
     BenchSetting (BenchStruct name cons insOp delOp)
                  (BenchEnv workersNum capsNum)
-                 (BenchProc !initSize !insRate !runsNum !prepTL)
+                 (BenchProc !initSize !insRate !runsNum !prepTL _)
                  benchCase
   ) = event ("series of runs with: " ++ name) $ do
     g <- createSystemRandom

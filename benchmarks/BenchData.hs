@@ -9,12 +9,18 @@ module BenchData (
     BenchReport(BenchReport),
     BenchCaseKind(Thrput, Timing),
     ShortBenchReport(ShortBenchReport),
+    ComposedReport(ComposedReport),
     buildBenchSetting,
-    makeShortReport
+    makeShortReport,
+    makeComposedReport,
+    printableTable,
+    benchStamp,
+    printedTable
 ) where
 
 import Options.Applicative
 import Text.Printf
+import Data.List
 
 {- Data Structures -}
 
@@ -41,7 +47,8 @@ data BenchProc = BenchProc {
     getInitSize :: {-# UNPACK #-} !Int,
     getInsRate  :: {-# UNPACK #-} !Int,
     getCountOfRuns :: {-# UNPACK #-} !Int,
-    getPrepTimeLimit :: {-# UNPACK #-} !Int
+    getPrepTimeLimit :: {-# UNPACK #-} !Int,
+    getFileOutputFlag :: Bool
 } deriving Show
 
 data BenchCase
@@ -73,10 +80,60 @@ data ShortBenchReport = ShortBenchReport {
     getInitSz :: Int,
     getInsRt :: Int,
     getCapNum :: Int,
-    getMatch :: [(Int, Int, Int)] -- (param, result, dispertion)
+    getMatches :: [(Int, Int, Int)], -- (param, result, error)
+    getFileFlag :: Bool
 }
 
+data ComposedReport =
+    ComposedReport  BenchCaseKind -- kind of benchmark
+                    Int -- init size
+                    Int -- insertion rate
+                    Int -- number of capabilities
+                    [String] -- implementation names
+                    [(Int, [(Int, Int)])] -- results and errors for given param
+                    Bool -- whether to output to file
+
 {- Utils -}
+
+printedTable :: String -> ComposedReport -> (Bool, String, String)
+printedTable benchName composedRep = (toFile, stamp, text)
+    where
+        text = unlines $ map unwords table
+        (toFile, stamp, table) = printableTable benchName composedRep
+
+printableTable :: String -> ComposedReport -> (Bool, String, [[String]])
+printableTable benchName (ComposedReport kind size rate caps names results toFile) =
+    (toFile, benchStamp benchName kindName size rate caps, fstLine : table)
+    where
+        kindName = paramName kind
+        fstLine = kindName : titles names
+        titles [] = []
+        titles (name:ns) = name : err name : titles ns
+        paramName Thrput = "period"
+        paramName Timing = "timing"
+        err = (++"-err")
+        unpair [] = []
+        unpair ((a, b):ps) = a : b : unpair ps
+        table = map (\(p, ps) -> map show $ p : unpair ps) results
+
+benchStamp :: String -> String -> Int -> Int -> Int -> String
+benchStamp benchName kindName size rate caps =
+    intercalate "-" [benchName, kindName, size', rate', caps']
+    where
+        size' = "s" ++ show size
+        rate' = "r" ++ show rate
+        caps' = "c" ++ show caps
+
+makeComposedReport :: [ShortBenchReport] -> ComposedReport
+makeComposedReport [] = error "Cannot composed empty list of reports"
+makeComposedReport rs@(ShortBenchReport _ kind initSize insRate capNum _ toFile :_) =
+  ComposedReport kind initSize insRate capNum names results toFile
+    where
+        names = map getStrName rs
+        results = map transform $ transpose $ map getMatches rs
+        transform [] = error "makeComposedReport: empty lise of reports"
+        transform xs@((p, _, _):_) = (p, map get23 xs)
+        get23 (_, b, c) = (b, c)
 
 makeShortReport :: BenchReport a b -> ShortBenchReport
 makeShortReport (BenchReport setting result) =
@@ -87,6 +144,7 @@ makeShortReport (BenchReport setting result) =
         (getInsRate $ getProc setting)
         (getCountOpCaps $ getEnv setting)
         match
+        (getFileOutputFlag $ getProc setting)
     where
         match = zipWith (\p (r, d) -> (p, r, d)) params results
         results = case result of
@@ -138,6 +196,8 @@ parseBenchProc defaultProc = BenchProc
                      <> long "prep"
                      <> help "Time limit for preparation"
                     )
+    <*> switch (long "file"
+                <> help "Whether to output to file")
 
 parseBenchCase :: Parser BenchCase
 parseBenchCase = subparser $
@@ -177,7 +237,7 @@ instance Show (BenchStruct a b) where
     show (BenchStruct name _ _ _) = name
 
 instance Show ShortBenchReport where
-    show (ShortBenchReport name kind isize irate cn matches) =
+    show (ShortBenchReport name kind isize irate cn matches _) =
         unlines $ benchHeader : map printMatch matches
         where
             (kindName, parUnits, resUnits) = case kind of
