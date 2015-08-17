@@ -98,7 +98,7 @@ data ComposedReport =
 printedTable :: String -> ComposedReport -> (Bool, String, String)
 printedTable benchName composedRep = (toFile, stamp, text)
     where
-        text = unlines $ map unwords table
+        text = unlines $ map (intercalate "\t") table
         (toFile, stamp, table) = printableTable benchName composedRep
 
 printableTable :: String -> ComposedReport -> (Bool, String, [[String]])

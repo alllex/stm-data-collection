@@ -1,0 +1,141 @@
+\documentclass{article}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage[textwidth=15cm]{geometry}
+
+\usepackage{titlesec}
+\newcommand{\sectionbreak}{\clearpage}
+
+\pgfplotstableread{pq-bench-period500-s50000-r50.log}\pqthr
+\pgfplotstableread{pq-bench-timing100000-s50000-r50.log}\pqtim
+\pgfplotstableread{bag-bench-period500-s50000-r50.log}\bagthr
+\pgfplotstableread{bag-bench-timing100000-s50000-r50.log}\bagtim
+
+\pgfplotsset{
+    compat=1.9,
+    every axis legend/.append style={
+        at={(0.5,1.03)},
+        anchor=south
+    }
+}
+
+\begin{document}
+
+
+  \section{Priority Queue Throughput}
+
+    Initial size = 50000 items. Insertion rate = 50\%. Period = 500ms.
+    \newline
+
+  \begin{tikzpicture}
+    \begin{axis} [
+        width=0.8\textwidth, xtick=data, ytick=data,
+        xlabel=Number of capabilities, ylabel=Completed operations
+    ]
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=1, y error index=2 ] {\pqthr};
+    \addlegendentry {Coarse-grained heap}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=3, y error index=4 ] {\pqthr};
+    \addlegendentry {Thread-local PCG Skip-list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=5, y error index=6 ] {\pqthr};
+    \addlegendentry {PCG Skip-list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=7, y error index=8 ] {\pqthr};
+    \addlegendentry {Thread-local PCG Seed Skip-list}
+
+    \end{axis}
+  \end{tikzpicture}
+
+  \section{Priority Queue Timing}
+
+    Initial size = 50000 items. Insertion rate = 50\%. Amount of operations = 100000.
+    \newline
+
+  \begin{tikzpicture}
+    \begin{axis} [
+        width=0.8\textwidth, xtick=data, ytick=data,
+        xlabel=Number of capabilities, ylabel=Time (ms)
+    ]
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=1, y error index=2 ] {\pqtim};
+    \addlegendentry {Coarse-grained heap}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=3, y error index=4 ] {\pqtim};
+    \addlegendentry {Thread-local PCG Skip-list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=5, y error index=6 ] {\pqtim};
+    \addlegendentry {PCG Skip-list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=7, y error index=8 ] {\pqtim};
+    \addlegendentry {Thread-local PCG Seed Skip-list}
+
+    \end{axis}
+  \end{tikzpicture}
+
+
+  \section{Bag Throughput}
+
+    Initial size = 50000 items. Insertion rate = 50\%. Period = 500ms.
+    \newline
+
+  \begin{tikzpicture}
+    \begin{axis} [
+        width=0.8\textwidth, xtick=data, ytick=data,
+        xlabel=Number of capabilities, ylabel=Completed operations
+    ]
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=1, y error index=2 ] {\bagthr};
+    \addlegendentry {Coarse-grained list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=3, y error index=4 ] {\bagthr};
+    \addlegendentry {Fine-grained list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=5, y error index=6 ] {\bagthr};
+    \addlegendentry {Thread-local coarse-grained list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=7, y error index=8 ] {\bagthr};
+    \addlegendentry {Thread-local fine-grained list}
+
+    \end{axis}
+  \end{tikzpicture}
+
+  \section{Priority Queue Timing}
+
+    Initial size = 50000 items. Insertion rate = 50\%. Amount of operations = 100000.
+    \newline
+
+  \begin{tikzpicture}
+    \begin{axis} [
+        width=0.8\textwidth, xtick=data, ytick=data,
+        xlabel=Number of capabilities, ylabel=Time (ms)
+    ]
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=1, y error index=2 ] {\bagtim};
+    \addlegendentry {Coarse-grained list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=3, y error index=4 ] {\bagtim};
+    \addlegendentry {Fine-grained list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=5, y error index=6 ] {\bagtim};
+    \addlegendentry {Thread-local coarse-grained list}
+
+    \addplot+ [ error bars/.cd, y dir=both, y explicit ]
+        table [ col sep=tab, x index=0, y index=7, y error index=8 ] {\bagtim};
+    \addlegendentry {Thread-local fine-grained list}
+
+    \end{axis}
+  \end{tikzpicture}
+\end{document}

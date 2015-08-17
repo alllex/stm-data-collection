@@ -3,8 +3,6 @@
 
 BENCH_NAME=$1
 
-# TMPFILE=__tmp.log
-
 # common benchmark parameters
 RUNS=15
 INITSIZE=25000
@@ -33,23 +31,22 @@ fi
 # iterating through number of CPUs enabled for benchmark
 for NUMCPU in "${NUMCPUS[@]}"
 do
+    if [ "$BENCH_NAME" == "pq-bench" ]; then
+       SCALE_FLAG="--scale=$NUMCPU"
+    fi
 
     # benchmark throughput
     cabal bench $BENCH_NAME --only \
                 --benchmark-options="throughput $TIMEOUT_START  \
                                     --step=$TIMEOUT_STEP        \
                                     --upto=$TIMEOUT_UPTO        \
+                                    $SCALE_FLAG                 \
                                     --runs=$RUNS                \
                                     --initsize=$INITSIZE        \
                                     --insrate=$INSRATE          \
                                     --file
                                     +RTS -K16m -qa -N$NUMCPU"
                                     # --scale=$NUMCPU             \
-
-    # STAMP=$(cat $TMPFILE | head -n 1)
-    # echo "------------------------------------------"
-    # cat $TMPFILE
-    # echo $STAMP >> mylog.log
 
     # benchmark timing
     cabal bench $BENCH_NAME --only \
@@ -62,12 +59,4 @@ do
                                     --file
                                     +RTS -K16m -qa -N$NUMCPU"
 
-    # echo "------------------------------------------"
-    # cat $TMPFILE
-    # echo "------------------------------------------"
-    # STAMP=$(cat $TMPFILE | head -n 1)
-    # echo $STAMP >> mylog.log
-
 done
-
-# rm $TMPFILE

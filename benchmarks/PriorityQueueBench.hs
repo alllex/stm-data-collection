@@ -46,7 +46,7 @@ benchOne' (name, Box qcons) = do
         insOp q key = atomically $ insert q key ()
         delOp q = atomically $ deleteMin q
         struct = BenchStruct name cons insOp delOp
-        defProc = BenchProc 1000 50 3 1000 False
+        defProc = BenchProc 1000 50 3 3000 False
     report <- execBenchmark struct defProc
     return $ makeShortReport report
 
