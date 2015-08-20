@@ -9,6 +9,8 @@ module Benchmark (
 ) where
 
 import Control.Monad
+import Control.Applicative
+import Data.Foldable (for_)
 import Control.Exception (finally, bracket_)
 import Control.Concurrent
 import System.Random.PCG.Fast (createSystemRandom, uniform)
@@ -165,7 +167,7 @@ fill
     -> IO (Maybe Int) -- ^ TLE indicator
 fill !prepTL !numCap !initSize rndKey ins structs = do
     let abort = timeout $ prepTL * 1000
-        insOpsAct = forM_ structs $ \s -> rndKey >>= ins s
+        insOpsAct = for_ structs $ \s -> rndKey >>= ins s
     -- parallel data structure filling
     timing abort initSize numCap numCap insOpsAct
 
