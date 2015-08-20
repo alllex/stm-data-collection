@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
+-- {-# LANGUAGE ScopedTypeVariables #-}
 
 module Benchmark (
     module BenchData,
@@ -16,6 +17,7 @@ import Data.IORef
 import Data.Maybe (mapMaybe)
 import Data.List (find)
 import System.Mem
+import Data.Array
 
 import BenchData
 
@@ -28,30 +30,43 @@ event label =
            (traceMarkerIO $ "STOP "  ++ label)
 
 data OneBenchStatus
-    = PrepFail          -- preparation for benchmark was aborted
-    | BenchFail         -- benchmark was aborted
-    | BenchSucc Int     -- benchmark finished successfully
+    = PrepFail          -- ^ Preparation for benchmark was aborted
+    | BenchFail         -- ^ Benchmark was aborted
+    | BenchSucc Int     -- ^ Benchmark finished successfully
 
-execBenchmark :: BenchStruct a Int -> BenchProc -> IO (BenchReport a Int)
+-- | Main function to execute benchmarks using this framework.
+-- | Note: Number of capabilities isn't supposed to be changed during execution .
+execBenchmark
+    :: BenchStruct a Int        -- ^ Interface for working with data structure.
+    -> BenchProc                -- ^ Dafault parameters for benchmark procedure.
+    -> IO (BenchReport a Int)   -- ^ Benchmark execution action.
 execBenchmark strt defProc = do
     capsNum <- getNumCapabilities
     let env = BenchEnv capsNum capsNum
     setting <- buildBenchSetting strt env defProc
     benchmark setting
 
-type BenchFunc a = Int -> Int -> [IO a] -> IO (Maybe Int)
+-- | Common parameters for benchmark cases.
+type BenchFunc a = Int  -- ^ Number of capabilities.
+                -> Int  -- ^ Number of worker threads.
+                -> IO a -- ^ Single operation for worker.
+                -> IO (Maybe Int)   -- ^ Result if benchmark finished successfully.
 
-timing :: (IO () -> IO (Maybe ())) -> Int -> BenchFunc a
-timing abort !opCount !numCap !numWork ops = do
+-- | Benchmark case for measuring amount of time needed to complete
+--   given amount of operations upon data structure.
+timing
+    :: (IO () -> IO (Maybe ())) -- ^ Abortion wrapper in case benchmark executing too long.
+    -> Int                      -- ^ Amount of operations to perform.
+    -> BenchFunc a              -- ^ Common benchmark parameters (see 'BenchFunc').
+timing abort !opCount !numCap !numWork op = do
 
-    let iops = [ (i, op) | op <- ops, i <- [0..numWork-1] ]
-        !perWorker = opCount `div` numWork
+    let !perWorker = opCount `div` numWork
         !fstWorker = perWorker + (opCount `mod` numWork)
         work 0 = replicateM_ fstWorker
         work _ = replicateM_ perWorker
 
-    (cws, flags) <- fmap unzip . forM iops $ \(i, op) -> do
-        flag <- newEmptyMVar
+    (cws, flags) <- fmap unzip . forM [0..numWork-1] $ \i -> do
+        flag <- newEmptyMVar -- empty holder for the flag of finished execution
         let cap = i `mod` numCap
             wrappedWork = work i op >> putMVar flag ()
         return ((cap, wrappedWork), flag)
@@ -65,21 +80,25 @@ timing abort !opCount !numCap !numWork ops = do
         mapM_ takeMVar flags
     stopTime <- getTime
 
-    let dt = stopTime - startTime
-    return $ case tle of
+    let dt = stopTime - startTime :: Double -- measured time in seconds
+        dtms = round $ dt * 1000 :: Int -- measured time in milliseconds
+    return $ case tle of -- Time Limit Exceeded (abort has triggered)
         Nothing -> Nothing
-        _ -> Just $! round $ dt * 1000
+        _ -> Just $! dtms -- forcing the excecution
 
 
+-- | Benchmark case for measuring amount of succeeded operations upon
+--   data structure for given period of time.
+throughput
+    :: Int          -- ^ Period of time in milliseconds.
+    -> BenchFunc a  -- ^ Common benchmark parameters (see 'BenchFunc').
+throughput !period !numCap !numWork op = do
 
-throughput :: Int -> BenchFunc a
-throughput !period !numCap !numWork ops = do
-
-    let iops = [ (i, op) | op <- ops, i <- [0..numWork-1] ]
-    (cs, cws, flags) <- fmap unzip3 $ forM iops $ \(i, op) -> do
-        counter <- newIORef 0
-        flag <- newEmptyMVar
+    (cs, cws, flags) <- fmap unzip3 $ forM [0..numWork-1] $ \i -> do
+        counter <- newIORef (0 :: Int)-- counter for completed operations
+        flag <- newEmptyMVar  -- empty holder for the flag of finished execution
         let work = forever $ op >> modifyIORef' counter (+1)
+            -- work is wrapped in 'finally' because it is stopped by throwing exception
             wrappedWork = finally work (putMVar flag ())
             cap = i `mod` numCap
         return (counter, (cap, wrappedWork), flag)
@@ -89,49 +108,68 @@ throughput !period !numCap !numWork ops = do
 
     startTime <- getTime
     ts <- forM cws $ uncurry forkOn
-    threadDelay $ period * 1000
+    threadDelay $ period * 1000 -- threadDelay takes microseconds
     mapM_ killThread ts
-    mapM_ takeMVar flags
+    mapM_ takeMVar flags -- waiting for threads to handle exceptions
     stopTime <- getTime
 
-    count' <- fmap sum $ mapM readIORef cs -- summed up result of all counters
+    count' <- sum <$> mapM readIORef cs -- summed up result of all counters
     let dt = stopTime - startTime :: Double -- actual time period in seconds
         dtms = dt * 1000 :: Double -- actual time period in milliseconds
         ratio = fromIntegral period / dtms :: Double
         count = round $ (fromIntegral count' :: Double) * ratio :: Int
 
-    return $ Just count
+    return $ Just $! count -- estimated lower bound of throughput
 
-res2disp :: [Int] -> (Int, Int)
+-- | Converting results of benchmark to `avg +- err` form.
+-- | [<min>---------------<avg>-----<max>]
+-- |                        |<---err---->|
+res2disp
+    :: [Int]        -- ^ Abstract numeric results.
+    -> (Int, Int)   -- ^ Arithmetic average and closest bound.
 res2disp !rs = (mean, d)
     where mean = sum rs `div` length rs
           (mn, mx) = (minimum rs, maximum rs)
           !d = (mx - mean) `min` (mean - mn)
 
+-- | Builder for simple operation upon data structure.
+-- Corresponding to insertion rate operation will either
+-- insert (add) a random value or delete (take) one.
+-- | Note: as data structure parameter an IO action may be supplied
+-- which may yield random data structure each time.
 opInsDel
-    :: IO Int -- random key generator
-    -> IO Int -- random percent generator
-    -> Int    -- insertion rate
-    -> (a -> Int -> IO ()) -- insertion operation
-    -> (a -> IO ())  -- deletion operation
-    -> a      -- struct
+    :: IO Int -- ^ Random key generator
+    -> IO Int -- ^ Random percent generator
+    -> Int    -- ^ Insertion rate
+    -> (a -> Int -> IO ()) -- ^ Insertion operation
+    -> (a -> IO ())  -- ^ Deletion operation
+    -> IO a      -- ^ Data structure
     -> IO ()
-opInsDel rndKey rndPer !insRate ins del struct = do
-    percent <- rndPer
+opInsDel rndKey rndPerc !insRate ins del getStruct = do
+    struct <- getStruct
+    percent <- rndPerc
     if percent < insRate
         then rndKey >>= ins struct
         else del struct
 
+
+-- | Filling each data structure with needed amount of items before benchamrk.
+-- | Uses all avaliable capabilities for efficiency.
 fill
-    :: Int -> Int -> Int
-    -> IO Int -> (a -> Int -> IO ()) -> [a]
-    -> IO (Maybe Int)
+    :: Int -- ^ Time limit for the whole filling procedure (in milliseconds)
+    -> Int -- ^ Number of capabilities
+    -> Int -- ^ Needed size of each structure
+    -> IO Int -- ^ Random value generator
+    -> (a -> Int -> IO ()) -- ^ Insertion operation.
+    -> Array Int a -- ^ List of (empty) data structures
+    -> IO (Maybe Int) -- ^ TLE indicator
 fill !prepTL !numCap !initSize rndKey ins structs = do
     let abort = timeout $ prepTL * 1000
-        insOps = [rndKey >>= ins s | s <- structs]
+        insOpsAct = forM_ structs $ \s -> rndKey >>= ins s
     -- parallel data structure filling
-    timing abort initSize numCap numCap insOps
+    timing abort initSize numCap numCap insOpsAct
 
+-- | Processes 'BenchSetting' and reports results.
 benchmark :: BenchSetting a Int -> IO (BenchReport a Int)
 benchmark setting@(
     BenchSetting (BenchStruct name cons insOp delOp)
@@ -147,19 +185,25 @@ benchmark setting@(
 
         oneRun :: BenchFunc () -> Int -> IO OneBenchStatus
         oneRun bencher scale = event ("benchmark with: " ++ name) $ do
-            structs <- replicateM scale cons
-            let fillAct = fill prepTL capsNum initSize rndInt insOp structs
-                benchAct = bencher workersNum capsNum $ map buildOp structs
+            let structsCount = scale * capsNum -- `scale` data structures per capability
+                rndStructNum = (`mod` structsCount) `fmap` rndInt
+            structs <- replicateM structsCount cons
+            let structsArr = listArray (0, structsCount-1) structs
+                -- getting random structure from the array on each invocation
+                getStructAct = liftM (structsArr !) rndStructNum
+                fillAct = fill prepTL capsNum initSize rndInt insOp structsArr
+                singleOp = buildOp getStructAct
+                benchAct = bencher workersNum capsNum singleOp
                 fillAct' = event "filling structure" fillAct
                 benchAct' = event "bench itself" benchAct
 
             tle <- fillAct'
             performMajorGC
-            case tle of
-                Nothing -> return PrepFail
+            case tle of -- Time Limit Exceeded flag
+                Nothing -> return PrepFail -- fail on structure filling step
                 _ -> benchAct' >>= \case
-                        Nothing -> return BenchFail
-                        (Just res) -> return $ BenchSucc res
+                        Nothing -> return BenchFail -- fail on excecution step (due to TLE)
+                        (Just res) -> return $ BenchSucc $! res
 
         manyRuns
             :: String
