@@ -1,3 +1,22 @@
+{-|
+Module      : Data.STM.PriorityQueue.Internal.PTSTASLPQ
+Description : STM-based Concurrent Priority Queue data structure class implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
+
+An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
+| Expected time complexity of deletion is /O(1)/, while insertion still
+normally has logarithmic complexity.
+| The skip-list's nodes are implemented via 'Control.Concurrent.STM.TArray'.
+In addition, unboxed RNG seeds are distributed among capabilities
+which reduces contention and also accelerates internal random-number generation.
+
+| Note: number of capabilities is not supposed to be changed during execution.
+-}
+
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 
@@ -27,12 +46,15 @@ data Node k v = Nil
               , getNodes :: Nodes k v
               }
 
+-- | Abbreviation stands for Per Thread Seed TArray Skip-List Priority Queue
 data PTSTASLPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
   , getStates    :: U.IOVector Word64
   }
 
+-- | Constant for aligning RNG seed to cache-line
+-- which usually is 64 Kb long (while seed only is 'Data.Word64').
 cacheFactor :: Int
 cacheFactor = 8
 
@@ -104,14 +126,12 @@ pqInsert (PQ headNodes vHeight states) k v = do
 
         updatePtrs 1 prevs
 
-
 pqPeekMin :: Ord k => PTSTASLPQ k v -> STM v
 pqPeekMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
     Nil -> retry
     (Node _ vv _) -> readTVar vv
-
 
 pqDeleteMin :: Ord k => PTSTASLPQ k v -> STM v
 pqDeleteMin (PQ headNodes _ _) = do

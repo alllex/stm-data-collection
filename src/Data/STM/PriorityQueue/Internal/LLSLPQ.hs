@@ -1,3 +1,18 @@
+{-|
+Module      : Data.STM.PriorityQueue.Internal.LLSLPQ
+Description : STM-based Concurrent Priority Queue data structure class implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
+
+An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
+| Expected time complexity of deletion is /O(1)/, while insertion still
+normally has logarithmic complexity.
+| The skip-list's nodes are implemented via fine-grained Linked List.
+-}
+
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.STM.PriorityQueue.Internal.LLSLPQ(
@@ -35,6 +50,8 @@ type TNode k v = TVar (Node k v)
   The first layout is the main layout that is never deleted
   and used for data access and control.
 -}
+
+-- | Abbreviation stands for Linked List (-based) Skip-List Priority Queue
 data LLSLPQ k v
   = PQ
   { getTop       :: TNode k v  -- top-node of the main layout
@@ -43,7 +60,6 @@ data LLSLPQ k v
   , getNil       :: TNode k v  -- pointer to Nil shared by all nodes
   , getGenIO     :: TVar GenIO -- RNG
   }
-
 
 buildHeads
   :: Ord k
@@ -68,7 +84,6 @@ pqNew' height = do
   height' <- newTVar height
   gio' <- newTVar $ unsafePerformIO createSystemRandom
   return $ PQ top' bottom' height' nil' gio'
-
 
 pqNew :: Ord k => STM (LLSLPQ k v)
 pqNew = pqNew' 16
@@ -133,7 +148,6 @@ pqPeekMin (PQ _ bottom' _ _ _) = do
         Nil -> retry
         (Node _ v' _ _ _) -> readTVar v'
 
-
 pqDeleteMin :: Ord k => LLSLPQ k v -> STM v
 pqDeleteMin (PQ _ bottom' _ _ _) = do
   bottom <- readTVar bottom'
@@ -155,7 +169,6 @@ pqDeleteMin (PQ _ bottom' _ _ _) = do
                  headUp <- readTVar headUp'
                  writeTVar next' nextnext
                  recDel headUp up
-
 
 instance PriorityQueue LLSLPQ where
     new            = pqNew

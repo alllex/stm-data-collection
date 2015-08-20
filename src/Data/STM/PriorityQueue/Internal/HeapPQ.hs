@@ -1,3 +1,17 @@
+{-|
+Module      : Data.STM.PriorityQueue.Internal.HeapPQ
+Description : STM-based Concurrent Priority Queue data structure class implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
+
+An implementation of 'Data.STM.PriorityQueue.Class' based on
+functional __coarse-grained__ binary heap. Heap is implemented as described in
+<https://www.cs.cmu.edu/~rwh/theses/okasaki.pdf Purely Functional Data Structures>.
+-}
+
 {-# LANGUAGE BangPatterns #-}
 
 module Data.STM.PriorityQueue.Internal.HeapPQ(
@@ -6,7 +20,6 @@ module Data.STM.PriorityQueue.Internal.HeapPQ(
 
 import Control.Concurrent.STM
 import Data.STM.PriorityQueue.Class
-
 
 data Heap k v = Nil
               | Node {-# UNPACK #-} !Int -- rank
@@ -19,18 +32,14 @@ data Heap k v = Nil
 
 data HeapPQ k v = PQ (TVar (Heap k v))
 
-
 empty :: Heap k v
 empty = Nil
-
 
 leaf :: k -> v -> Heap k v
 leaf !k v = Node 1 1 k v empty empty
 
-
 ins :: Ord k => k -> v -> Heap k v -> Heap k v
 ins !k v !h = h `union` leaf k v
-
 
 union :: Ord k => Heap k v -> Heap k v -> Heap k v
 h `union` Nil = h
@@ -39,7 +48,6 @@ h1@(Node _ _ !k1 v1 l1 r1) `union` h2@(Node _ _ !k2 v2 l2 r2) =
   if k1 < k2
   then mk k1 v1 l1 $ r1 `union` h2
   else mk k2 v2 l2 $ r2 `union` h1
-
 
 mk :: k -> v -> Heap k v -> Heap k v -> Heap k v
 mk !k v h1 h2 =
@@ -52,16 +60,13 @@ mk !k v h1 h2 =
     sz (Node _ !s _ _ _ _) = s
     !ss = sz h1 + sz h2 + 1
 
-
 pk :: Heap t a -> Maybe a
 pk Nil = Nothing
 pk (Node _ _ _ v _ _) = Just v
 
-
 rm :: Ord k => Heap k v -> Maybe (v, Heap k v)
 rm Nil = Nothing
 rm (Node _ _ _ v l r) = Just (v, l `union` r)
-
 
 dm :: Ord k => HeapPQ k b -> STM b
 dm (PQ hp) = do

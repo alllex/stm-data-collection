@@ -1,3 +1,21 @@
+{-|
+Module      : Data.STM.PriorityQueue.Internal.PTRTASLPQ
+Description : STM-based Concurrent Priority Queue data structure class implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
+
+An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
+| Expected time complexity of deletion is /O(1)/, while insertion still
+normally has logarithmic complexity.
+| The skip-list's nodes are implemented via 'Control.Concurrent.STM.TArray'.
+In addition, RNG are distributed among capabilities which reduces contention.
+
+| Note: number of capabilities is not supposed to be changed during execution.
+-}
+
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.STM.PriorityQueue.Internal.PTRTASLPQ(
@@ -23,12 +41,12 @@ data Node k v = Nil
               , getNodes :: Nodes k v
               }
 
+-- | Abbreviation stands for Per Thread TArray (-based) Skip-List Priority Queue
 data PTRTASLPQ k v = PQ
   { getHeadNodes :: Nodes k v
   , getHeight    :: TVar Int
   , getGen       :: TArray Int GenIO
   }
-
 
 pqNew' :: Ord k => Int -> STM (PTRTASLPQ k v)
 pqNew' height = do
@@ -37,7 +55,6 @@ pqNew' height = do
   let cn = unsafePerformIO getNumCapabilities
   gios' <- newArray (1, cn) $ unsafePerformIO createSystemRandom
   return $ PQ headNodes vHeight gios'
-
 
 pqNew :: Ord k => STM (PTRTASLPQ k v)
 pqNew = pqNew' 16
@@ -85,14 +102,12 @@ pqInsert (PQ headNodes vHeight gios') k v = do
 
         updatePtrs 1 prevs
 
-
 pqPeekMin :: Ord k => PTRTASLPQ k v -> STM v
 pqPeekMin (PQ headNodes _ _) = do
   bottom <- readArray headNodes 1
   case bottom of
     Nil -> retry
     (Node _ vv _) -> readTVar vv
-
 
 pqDeleteMin :: Ord k => PTRTASLPQ k v -> STM v
 pqDeleteMin (PQ headNodes _ _) = do
