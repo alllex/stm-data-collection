@@ -40,7 +40,7 @@ library
   default-language:     Haskell2010
   ghc-options:          -Wall -O2 -threaded -rtsopts -fno-omit-yields
 
-test-suite pqueue-tests
+test-suite pq-tests
   type:                 exitcode-stdio-1.0
   main-is:              PriorityQueueTests.hs
   hs-source-dirs:       tests, src
@@ -52,7 +52,7 @@ test-suite pqueue-tests
                         hspec >=2.1 && <2.2, QuickCheck >=2.8 && <2.9
   ghc-options:          -Wall -O2 -threaded -rtsopts -fno-omit-yields
 
-benchmark pqueue-bench
+benchmark pq-bench
   type:                 exitcode-stdio-1.0
   main-is:              PriorityQueueBench.hs
   hs-source-dirs:       benchmarks, src

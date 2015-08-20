@@ -1,0 +1,16 @@
+timing	coarse-heap-pq	coarse-heap-pq-err	tarray-pcg-perthread-skiplist-pq	tarray-pcg-perthread-skiplist-pq-err	tarray-pcg-skiplist-pq	tarray-pcg-skiplist-pq-err	tarray-pcg-seed-perthread-skiplist-pq	tarray-pcg-seed-perthread-skiplist-pq-err
+10000	79	8	15	0	16	1	15	0
+20000	102	11	32	1	33	2	31	1
+30000	125	13	48	1	47	1	47	1
+40000	143	12	65	2	66	3	62	1
+50000	174	26	83	5	83	3	80	4
+60000	184	20	100	3	101	4	97	5
+70000	195	16	120	6	118	6	115	5
+80000	206	14	136	5	135	4	132	6
+90000	222	22	161	5	162	13	157	6
+100000	233	13	179	7	181	7	171	5
+110000	249	16	194	5	198	7	187	6
+120000	256	11	210	8	217	10	206	8
+130000	271	22	237	11	230	5	221	8
+140000	279	13	249	7	251	10	237	10
+150000	291	14	269	9	270	8	254	9
