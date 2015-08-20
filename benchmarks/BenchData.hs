@@ -62,7 +62,7 @@ data BenchCase
     } deriving Show
 
 data BenchResult
-    = ThroughputRes [(Int, Int)]
+    = ThroughputRes [((Int, Int), Double)]
     | TimingRes [(Int, Int)]
     | AbortedRes String
     deriving Show
@@ -150,7 +150,7 @@ makeShortReport (BenchReport setting result) =
         results = case result of
             AbortedRes msg -> error msg
             TimingRes rs -> rs
-            ThroughputRes rs -> rs
+            ThroughputRes rs -> map fst rs
         (caseKind, params) = case getCase setting of
             TimingCase ps _ -> (Timing, ps)
             ThroughputCase _ ps -> (Thrput, ps)

@@ -1,7 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
--- {-# LANGUAGE ScopedTypeVariables #-}
 
 module Benchmark (
     module BenchData,
@@ -30,9 +29,9 @@ event label =
            (traceMarkerIO $ "STOP "  ++ label)
 
 data OneBenchStatus
-    = PrepFail          -- ^ Preparation for benchmark was aborted
-    | BenchFail         -- ^ Benchmark was aborted
-    | BenchSucc Int     -- ^ Benchmark finished successfully
+    = PrepFail  -- ^ Preparation for benchmark was aborted
+    | BenchFail -- ^ Benchmark was aborted
+    | BenchSucc (Int, Double)  -- ^ Benchmark finished successfully
 
 -- | Main function to execute benchmarks using this framework.
 -- | Note: Number of capabilities isn't supposed to be changed during execution .
@@ -47,10 +46,11 @@ execBenchmark strt defProc = do
     benchmark setting
 
 -- | Common parameters for benchmark cases.
-type BenchFunc a = Int  -- ^ Number of capabilities.
-                -> Int  -- ^ Number of worker threads.
-                -> IO a -- ^ Single operation for worker.
-                -> IO (Maybe Int)   -- ^ Result if benchmark finished successfully.
+type BenchFunc a
+    =  Int  -- ^ Number of capabilities.
+    -> Int  -- ^ Number of worker threads.
+    -> IO a -- ^ Single operation for worker.
+    -> IO (Maybe (Int, Double)) -- ^ Result and estimated time of execution
 
 -- | Benchmark case for measuring amount of time needed to complete
 --   given amount of operations upon data structure.
@@ -80,11 +80,11 @@ timing abort !opCount !numCap !numWork op = do
         mapM_ takeMVar flags
     stopTime <- getTime
 
-    let dt = stopTime - startTime :: Double -- measured time in seconds
-        dtms = round $ dt * 1000 :: Int -- measured time in milliseconds
+    let !dt = stopTime - startTime :: Double -- measured time in seconds
+        !dtms = round $ dt * 1000 :: Int -- measured time in milliseconds
     return $ case tle of -- Time Limit Exceeded (abort has triggered)
         Nothing -> Nothing
-        _ -> Just $! dtms -- forcing the excecution
+        _ -> Just (dtms, dt) -- pair here for consistency with BenchFunc
 
 
 -- | Benchmark case for measuring amount of succeeded operations upon
@@ -114,12 +114,11 @@ throughput !period !numCap !numWork op = do
     stopTime <- getTime
 
     count' <- sum <$> mapM readIORef cs -- summed up result of all counters
-    let dt = stopTime - startTime :: Double -- actual time period in seconds
-        dtms = dt * 1000 :: Double -- actual time period in milliseconds
-        ratio = fromIntegral period / dtms :: Double
-        count = round $ (fromIntegral count' :: Double) * ratio :: Int
-
-    return $ Just $! count -- estimated lower bound of throughput
+    let !dt = stopTime - startTime :: Double -- actual time period in seconds
+        !dtms = dt * 1000 :: Double -- actual time period in milliseconds
+        !ratio = fromIntegral period / dtms :: Double
+        !count = round $! (fromIntegral count' :: Double) * ratio :: Int
+    return $ Just (count, dt) -- estimated lower bound of throughput and actual time
 
 -- | Converting results of benchmark to `avg +- err` form.
 -- | [<min>---------------<avg>-----<max>]
@@ -162,7 +161,7 @@ fill
     -> IO Int -- ^ Random value generator
     -> (a -> Int -> IO ()) -- ^ Insertion operation.
     -> Array Int a -- ^ List of (empty) data structures
-    -> IO (Maybe Int) -- ^ TLE indicator
+    -> IO (Maybe (Int, Double)) -- ^ TLE indicator
 fill !prepTL !numCap !initSize rndKey ins structs = do
     let abort = timeout $ prepTL * 1000
         insOpsAct = forM_ structs $ \s -> rndKey >>= ins s
@@ -180,7 +179,6 @@ benchmark setting@(
     g <- createSystemRandom
     let rndInt = uniform g :: IO Int
         rndPerc = (`mod` 101) `fmap` rndInt
-
         buildOp = opInsDel rndInt rndPerc insRate insOp delOp
 
         oneRun :: BenchFunc () -> Int -> IO OneBenchStatus
@@ -203,13 +201,13 @@ benchmark setting@(
                 Nothing -> return PrepFail -- fail on structure filling step
                 _ -> benchAct' >>= \case
                         Nothing -> return BenchFail -- fail on excecution step (due to TLE)
-                        (Just res) -> return $ BenchSucc $! res
+                        (Just res) -> return $ BenchSucc res
 
         manyRuns
             :: String
             -> BenchFunc ()
             -> Int -- scale
-            -> IO (Either String (Int, Int))
+            -> IO (Either String ((Int, Int), Double))
         manyRuns benchFailMsg bencher scale = do
             rowRes <- replicateM runsNum $ oneRun bencher scale
             let prepFailed = find (\case PrepFail -> True; _ -> False) rowRes
@@ -217,16 +215,22 @@ benchmark setting@(
             case prepFailed of
               (Just PrepFail) -> return $ Left prepFailMsg
               _ -> do
-                let succRes = filter (\case BenchSucc _ -> True; _ -> False) rowRes
+                let fltr acc (BenchSucc r) = r : acc
+                    fltr acc _ = acc
+                    succRes = foldl fltr [] rowRes
                 if 100 * length succRes < 75 * length rowRes -- if more than 25% failures
                 then return $ Left benchFailMsg
-                else return . Right . res2disp $ map (\(BenchSucc r) -> r) succRes
+                else do
+                    let (rs, dts) = unzip succRes
+                        !rd = res2disp rs :: (Int, Int)
+                        !dt = sum dts / (fromIntegral . length) dts :: Double
+                    return $ Right (rd, dt)
 
         manyBenchCases
             :: String
             -> [a]
             -> (a -> BenchFunc ())
-            -> ([(Int, Int)] -> BenchResult)
+            -> ([((Int, Int), Double)] -> BenchResult)
             -> Int -- scale
             -> IO BenchResult
         manyBenchCases benchFailMsg params bencher' wrapper scale = do
@@ -245,7 +249,8 @@ benchmark setting@(
             let abortOnTimeout = timeout (timelimit * 1000)
                 benchFailMsg = ">" ++ show timelimit ++ "ms"
                 bencher = timing abortOnTimeout
-            manyBenchCases benchFailMsg opCounts bencher TimingRes 1
+                wrapper = TimingRes . map fst
+            manyBenchCases benchFailMsg opCounts bencher wrapper 1
 
     performMajorGC
     BenchReport setting `fmap` bench benchCase

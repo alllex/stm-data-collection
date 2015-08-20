@@ -5,20 +5,20 @@ BENCH_NAME=$1
 
 # common benchmark parameters
 RUNS=5
-INITSIZE=25000
+INITSIZE=10000
 INSRATE=50
 NUMCPUS=(4)  # (1 2 4)
 
 # throughput parameters
 TIMEOUT_START=100
 TIMEOUT_STEP=100
-TIMEOUT_UPTO=500
+TIMEOUT_UPTO=300
 
 # timing parameters
 TIMELIMIT=500
 OPCOUNT_START=20000
 OPCOUNT_STEP=20000
-OPCOUNT_UPTO=100000
+OPCOUNT_UPTO=60000
 
 # prepare for benchmarking
 cabal configure --enable-benchmarks && cabal build -j
