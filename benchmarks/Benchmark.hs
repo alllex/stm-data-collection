@@ -87,12 +87,20 @@ throughput !period !numCap !numWork ops = do
     performMajorGC
     traceMarkerIO "Right before throughput benchmark start"
 
+    startTime <- getTime
     ts <- forM cws $ uncurry forkOn
     threadDelay $ period * 1000
     mapM_ killThread ts
     mapM_ takeMVar flags
+    stopTime <- getTime
 
-    (Just . sum) `fmap` mapM readIORef cs
+    count' <- fmap sum $ mapM readIORef cs -- summed up result of all counters
+    let dt = stopTime - startTime :: Double -- actual time period in seconds
+        dtms = dt * 1000 :: Double -- actual time period in milliseconds
+        ratio = fromIntegral period / dtms :: Double
+        count = round $ (fromIntegral count' :: Double) * ratio :: Int
+
+    return $ Just count
 
 res2disp :: [Int] -> (Int, Int)
 res2disp !rs = (mean, d)
@@ -199,4 +207,5 @@ benchmark setting@(
     BenchReport setting `fmap` bench benchCase
 
 
+-- | Returns time in seconds
 foreign import ccall unsafe "gettime" getTime :: IO Double
