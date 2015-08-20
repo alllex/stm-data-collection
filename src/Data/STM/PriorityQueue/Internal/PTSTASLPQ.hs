@@ -16,6 +16,8 @@ import Data.Word (Word64, Word32)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Control.Concurrent
 
+import GHC.Conc
+
 import Data.STM.PriorityQueue.Class
 
 type Nodes k v = TArray Int (Node k v)
@@ -75,7 +77,7 @@ pqInsert :: Ord k => PTSTASLPQ k v -> k -> v -> STM ()
 pqInsert (PQ headNodes vHeight states) k v = do
   height <- readTVar vHeight
   prevs <- buildPrevs headNodes height []
-  let cn = unsafeDupablePerformIO $ do
+  cn <- unsafeIOToSTM $ do
         tid <- myThreadId
         fst `fmap` threadCapability tid
   let lvl = chooseLvl states cn height
