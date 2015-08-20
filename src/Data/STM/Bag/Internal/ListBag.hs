@@ -1,3 +1,15 @@
+{-|
+Module      : Data.STM.Bag.Internal.ListBag
+Description : STM-based Concurrent Bag data structure implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
+
+Implementation of the 'Data.STM.Bag.Class' using coarse-grained list.
+It is efficient only if there are not many threads.
+-}
 
 module Data.STM.Bag.Internal.ListBag(
     ListBag

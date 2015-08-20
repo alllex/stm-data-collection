@@ -1,4 +1,15 @@
+{-|
+Module      : Data.STM.Bag.Internal.TListBag
+Description : STM-based Concurrent Bag data structure implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
 
+Implementation of the 'Data.STM.Bag.Class' using fine-grained list.
+It is efficient only if there are not many threads.
+-}
 
 module Data.STM.Bag.Internal.TListBag(
     TListBag
@@ -7,7 +18,9 @@ module Data.STM.Bag.Internal.TListBag(
 import Control.Concurrent.STM
 import Data.STM.Bag.Class
 
+-- | Fine-grained list upon 'Control.Concurrent.STM.TVar's
 data TList v = Nil | TNode v (TVar (TList v))
+
 data TListBag v = B
     { getHead :: TVar (TList v)
     , getTail :: TVar (TVar (TList v))
