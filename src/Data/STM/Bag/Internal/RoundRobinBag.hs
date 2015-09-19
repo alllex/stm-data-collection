@@ -25,7 +25,6 @@ module Data.STM.Bag.Internal.RoundRobinBag(
 
 import Control.Concurrent.STM
 import Prelude hiding (take)
-import System.IO.Unsafe (unsafeDupablePerformIO)
 import Control.Concurrent
 import Data.Array.MArray
 import Control.Monad
@@ -46,9 +45,6 @@ myCap = do
     c <- fst `fmap` threadCapability tid
 --     putStrLn $ "cap " ++ show c
     return c
-
-capNum :: Int
-capNum = unsafeDupablePerformIO getNumCapabilities
 
 -- | Given an 'Data.STM.Bag.Class' implementation
 -- creates an array of capability-local data structures
