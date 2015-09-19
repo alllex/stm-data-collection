@@ -1,3 +1,21 @@
+{-|
+Module      : Data.STM.PriorityQueue.Internal.PTRLLSLPQ
+Description : STM-based Concurrent Priority Queue data structure class implementation
+Copyright   : (c) Alex Semin, 2015
+License     : BSD3
+Maintainer  : alllex.semin@gmail.com
+Stability   : experimental
+Portability : portable
+
+An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
+| Expected time complexity of deletion is /O(1)/, while insertion still
+normally has logarithmic complexity.
+| The skip-list's nodes are implemented via fine-grained Linked List.
+In addition, RNG are distributed among capabilities which reduces contention.
+
+| Note: number of capabilities is not supposed to be changed during execution.
+-}
+
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.STM.PriorityQueue.Internal.PTRLLSLPQ(
@@ -37,6 +55,8 @@ type TNode k v = TVar (Node k v)
   The first layout is the main layout that is never deleted
   and used for data access and control.
 -}
+
+-- | Abbreviation stands for Per Thread Random Linked List (-based) Skip-List PQ
 data PTRLLSLPQ k v
   = PQ
   { getTop       :: TNode k v  -- top-node of the main layout
@@ -45,7 +65,6 @@ data PTRLLSLPQ k v
   , getNil       :: TNode k v  -- pointer to Nil shared by all nodes
   , getGenIO     :: TArray Int GenIO -- RNG
   }
-
 
 buildHeads
   :: Ord k
@@ -71,7 +90,6 @@ pqNew' height = do
   let cn = unsafePerformIO getNumCapabilities
   gios' <- newArray (1, cn) $ unsafePerformIO createSystemRandom
   return $ PQ top' bottom' height' nil' gios'
-
 
 pqNew :: Ord k => STM (PTRLLSLPQ k v)
 pqNew = pqNew' 16
@@ -139,7 +157,6 @@ pqPeekMin (PQ _ bottom' _ _ _) = do
       case next of
         Nil -> retry
         (Node _ v' _ _ _) -> readTVar v'
-
 
 pqDeleteMin :: Ord k => PTRLLSLPQ k v -> STM v
 pqDeleteMin (PQ _ bottom' _ _ _) = do
