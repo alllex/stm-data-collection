@@ -8,9 +8,11 @@ Stability   : experimental
 Portability : portable
 
 An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
-| Expected time complexity of deletion is /O(1)/, while insertion still
+
+Expected time complexity of deletion is /O(1)/, while insertion still
 normally has logarithmic complexity.
-| The skip-list's nodes are implemented via fine-grained Linked List.
+
+The skip-list's nodes are implemented via fine-grained Linked List.
 -}
 
 {-# LANGUAGE FlexibleContexts #-}

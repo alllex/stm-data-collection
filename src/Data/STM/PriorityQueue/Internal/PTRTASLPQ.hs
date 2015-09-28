@@ -8,12 +8,14 @@ Stability   : experimental
 Portability : portable
 
 An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
-| Expected time complexity of deletion is /O(1)/, while insertion still
+
+Expected time complexity of deletion is /O(1)/, while insertion still
 normally has logarithmic complexity.
-| The skip-list's nodes are implemented via 'Control.Concurrent.STM.TArray'.
+
+The skip-list's nodes are implemented via 'Control.Concurrent.STM.TArray'.
 In addition, RNG are distributed among capabilities which reduces contention.
 
-| Note: number of capabilities is not supposed to be changed during execution.
+Note: number of capabilities is not supposed to be changed during execution.
 -}
 
 {-# LANGUAGE FlexibleContexts #-}

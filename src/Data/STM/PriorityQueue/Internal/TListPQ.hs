@@ -19,7 +19,6 @@ module Data.STM.PriorityQueue.Internal.TListPQ(
 
 import Control.Concurrent.STM
 import Data.STM.PriorityQueue.Class
-import Control.Applicative
 
 data TNode k v = TNil
                | TCons k v (TVar (TNode k v))

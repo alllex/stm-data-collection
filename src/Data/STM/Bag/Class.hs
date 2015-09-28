@@ -10,7 +10,7 @@ Portability : portable
 Concurrent Bag data structure which is relying on STM
 for consistency in multi-threading environment. Bag (or Multi Set)
 is a data container which provides very efficient adding and removing
-but guarantees *no* order.
+but guarantees __no order__.
 -}
 
 module Data.STM.Bag.Class (

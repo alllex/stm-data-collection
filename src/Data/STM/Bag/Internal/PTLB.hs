@@ -8,7 +8,8 @@ Stability   : experimental
 Portability : portable
 
 Implementation of the 'Data.STM.Bag.Class' using 'Control.Concurrent.STM.TArray' of
-'Data.STM.Bag.Internal.ListBag' (coarse-grained lists) which are used in thread-local manner in the first place and
+'Data.STM.Bag.Internal.ListBag' (coarse-grained lists) 
+which are used in thread-local manner in the first place and
 perform work-stealing otherwise.
 -}
 

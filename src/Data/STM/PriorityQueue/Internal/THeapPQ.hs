@@ -18,7 +18,6 @@ module Data.STM.PriorityQueue.Internal.THeapPQ(
 
 import Control.Concurrent.STM
 import Data.STM.PriorityQueue.Class
-import Control.Applicative
 
 data Heap k v = Nil
               | Node {-# UNPACK #-} !Int
