@@ -3,11 +3,11 @@ name:                   stm-data-collection
 version:                0.1.0.0
 synopsis:               Collection of STM-based Data Structures
 description:
-    Package provides implementations of different data structures,
-    relying on STM (https://hackage.haskell.org/package/stm) for safe
+    Package provides implementation of different data structures,
+    relying on STM (https:\/\/hackage.haskell.org\/package\/stm) for safe
     and flexible concurrency.
     .
-    There are several implemenations fir each data structure. The reason is that
+    There are several implemenations for each data structure. The reason is that
     the concrete one should be chosen depending on use-case. Description of
     cons and pros may be found in corresponding documentation. Some of the modules
     also provide parameterized constructors which must be imported separately and

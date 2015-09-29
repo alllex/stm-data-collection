@@ -16,6 +16,9 @@ The skip-list's nodes are implemented via 'Control.Concurrent.STM.TArray'.
 In addition, unboxed RNG seeds are distributed among capabilities
 which reduces contention and also accelerates internal random-number generation.
 
+__Default maximum height of skip-list node is 16.__ Use explicit constructor in case
+the height needs to be changed.
+
 Note: number of capabilities is not supposed to be changed during execution.
 -}
 
@@ -23,7 +26,8 @@ Note: number of capabilities is not supposed to be changed during execution.
 {-# LANGUAGE BangPatterns #-}
 
 module Data.STM.PriorityQueue.Internal.PTSTASLPQ(
-    PTSTASLPQ
+    PTSTASLPQ,
+    new'
 ) where
 
 import Data.Array.MArray
@@ -62,8 +66,10 @@ data PTSTASLPQ k v = PQ
 cacheFactor :: Int
 cacheFactor = 8
 
-pqNew' :: Ord k => Int -> STM (PTSTASLPQ k v)
-pqNew' height = do
+-- | Parameterizing constructor which determines
+-- maximum height of skip-list node.
+new' :: Ord k => Int -> STM (PTSTASLPQ k v)
+new' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar height
   let states = unsafeDupablePerformIO $ do
@@ -76,7 +82,7 @@ pqNew' height = do
   return $ PQ headNodes vHeight states
 
 pqNew :: Ord k => STM (PTSTASLPQ k v)
-pqNew = pqNew' 16
+pqNew = new' 16
 
 mbw32f :: Float
 mbw32f = fromIntegral (maxBound :: Word32)

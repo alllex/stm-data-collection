@@ -15,13 +15,17 @@ normally has logarithmic complexity.
 The skip-list's nodes are implemented via fine-grained Linked List.
 In addition, RNG are distributed among capabilities which reduces contention.
 
+__Default maximum height of skip-list node is 16.__ Use explicit constructor in case
+the height needs to be changed.
+
 Note: number of capabilities is not supposed to be changed during execution.
 -}
 
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.STM.PriorityQueue.Internal.PTRLLSLPQ(
-  PTRLLSLPQ
+  PTRLLSLPQ,
+  new'
 ) where
 
 import Control.Monad.STM
@@ -84,8 +88,10 @@ buildHeads up' h = do
   writeTVar curr' $ Node undefined undefined up' next' down'
   return (curr', bottom')
 
-pqNew' :: Ord k => Int -> STM (PTRLLSLPQ k v)
-pqNew' height = do
+-- | Parameterizing constructor which determines
+-- maximum height of skip-list node.
+new' :: Ord k => Int -> STM (PTRLLSLPQ k v)
+new' height = do
   nil' <- newTVar Nil
   (top', bottom') <- buildHeads nil' height
   height' <- newTVar height
@@ -94,7 +100,7 @@ pqNew' height = do
   return $ PQ top' bottom' height' nil' gios'
 
 pqNew :: Ord k => STM (PTRLLSLPQ k v)
-pqNew = pqNew' 16
+pqNew = new' 16
 
 logHalf :: Float
 logHalf = log 0.5

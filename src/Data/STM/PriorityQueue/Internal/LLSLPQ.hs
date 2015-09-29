@@ -12,13 +12,17 @@ An implementation of 'Data.STM.PriorityQueue.Class' based on skip-list.
 Expected time complexity of deletion is /O(1)/, while insertion still
 normally has logarithmic complexity.
 
+__Default maximum height of skip-list node is 16.__ Use explicit constructor in case
+the height needs to be changed.
+
 The skip-list's nodes are implemented via fine-grained Linked List.
 -}
 
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.STM.PriorityQueue.Internal.LLSLPQ(
-  LLSLPQ
+  LLSLPQ,
+  new'
 ) where
 
 import Control.Monad.STM
@@ -79,8 +83,10 @@ buildHeads up' h = do
   writeTVar curr' $ Node undefined undefined up' next' down'
   return (curr', bottom')
 
-pqNew' :: Ord k => Int -> STM (LLSLPQ k v)
-pqNew' height = do
+-- | Parameterizing constructor which determines
+-- maximum height of skip-list node.
+new' :: Ord k => Int -> STM (LLSLPQ k v)
+new' height = do
   nil' <- newTVar Nil
   (top', bottom') <- buildHeads nil' height
   height' <- newTVar height
@@ -88,7 +94,7 @@ pqNew' height = do
   return $ PQ top' bottom' height' nil' gio'
 
 pqNew :: Ord k => STM (LLSLPQ k v)
-pqNew = pqNew' 16
+pqNew = new' 16
 
 logHalf :: Float
 logHalf = log 0.5

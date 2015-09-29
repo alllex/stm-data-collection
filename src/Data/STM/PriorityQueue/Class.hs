@@ -10,6 +10,20 @@ Portability : portable
 Concurrent Priority Queue implemented over Haskell STM.
 This container allows to store items supplied with key and
 provides efficient way to retrive item with the smallest key.
+
+@
+import Control.Concurrent.STM
+import qualified Data.STM.PriorityQueue as PQ
+import Control.Monad ( forM_ )
+
+main :: IO ()
+main = do
+    pq <- atomically $ (PQ.new :: STM (PQ.Impl Int Int))
+    let kvs = [(2, 1), (5, 3), (1, 2), (4, 5)]
+    forM_ kvs $ \(k, v) -> atomically $ PQ.insert pq k v
+    x <- atomically $ PQ.deleteMin pq
+    putStrLn $ "x = " ++ show x -- prints 2
+@
 -}
 
 module Data.STM.PriorityQueue.Class (

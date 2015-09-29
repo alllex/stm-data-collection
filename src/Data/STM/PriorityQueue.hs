@@ -7,4 +7,5 @@ module Data.STM.PriorityQueue (
 import Data.STM.PriorityQueue.Class
 import Data.STM.PriorityQueue.Internal.PTSTASLPQ
 
+-- | The default implementation 
 type Impl = PTSTASLPQ

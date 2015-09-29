@@ -7,4 +7,5 @@ module Data.STM.Bag (
 import Data.STM.Bag.Class
 import Data.STM.Bag.Internal.PTLB
 
+-- | The default implementation
 type Impl = PTLB

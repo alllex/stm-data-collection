@@ -15,13 +15,17 @@ normally has logarithmic complexity.
 The skip-list's nodes are implemented via 'Control.Concurrent.STM.TArray'.
 In addition, RNG are distributed among capabilities which reduces contention.
 
+__Default maximum height of skip-list node is 16.__ Use explicit constructor in case
+the height needs to be changed.
+
 Note: number of capabilities is not supposed to be changed during execution.
 -}
 
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.STM.PriorityQueue.Internal.PTRTASLPQ(
-    PTRTASLPQ
+    PTRTASLPQ,
+    new'
 ) where
 
 import Data.Array.MArray
@@ -50,8 +54,10 @@ data PTRTASLPQ k v = PQ
   , getGen       :: TArray Int GenIO
   }
 
-pqNew' :: Ord k => Int -> STM (PTRTASLPQ k v)
-pqNew' height = do
+-- | Parameterizing constructor which determines
+-- maximum height of skip-list node.
+new' :: Ord k => Int -> STM (PTRTASLPQ k v)
+new' height = do
   headNodes <- newArray (1, height) Nil
   vHeight <- newTVar $ height
   let cn = unsafePerformIO getNumCapabilities
@@ -59,7 +65,7 @@ pqNew' height = do
   return $ PQ headNodes vHeight gios'
 
 pqNew :: Ord k => STM (PTRTASLPQ k v)
-pqNew = pqNew' 16
+pqNew = new' 16
 
 logHalf :: Float
 logHalf = log 0.5
