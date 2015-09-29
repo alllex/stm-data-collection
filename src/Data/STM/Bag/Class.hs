@@ -11,6 +11,16 @@ Concurrent Bag data structure which is relying on STM
 for consistency in multi-threading environment. Bag (or Multi Set)
 is a data container which provides very efficient adding and removing
 but guarantees __no order__.
+
+@
+main = do
+    bag <- atomically $ new
+    atomically $ add bag 10
+    atomically $ add bag 5
+    x <- atomically $ take bag
+    putStrLn $ show x -- x may be either 10 or 5
+@
+
 -}
 
 module Data.STM.Bag.Class (
