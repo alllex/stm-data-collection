@@ -42,16 +42,16 @@ type Nodes k v = TArray Int (Node k v)
 
 data Node k v = Nil
               | Node
-              { getKey   :: k
-              , getVal   :: TVar v
-              , getNodes :: Nodes k v
+              { _getKey   :: k
+              , _getVal   :: TVar v
+              , _getNodes :: Nodes k v
               }
 
 -- | Abbreviation stands for Per Thread TArray (-based) Skip-List Priority Queue
 data PTRTASLPQ k v = PQ
-  { getHeadNodes :: Nodes k v
-  , getHeight    :: TVar Int
-  , getGen       :: TArray Int GenIO
+  { _getHeadNodes :: Nodes k v
+  , _getHeight    :: TVar Int
+  , _getGen       :: TArray Int GenIO
   }
 
 -- | Parameterizing constructor which determines

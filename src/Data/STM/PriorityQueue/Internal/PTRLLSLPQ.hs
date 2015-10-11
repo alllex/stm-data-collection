@@ -40,11 +40,11 @@ import Data.STM.PriorityQueue.Class
 data Node k v
   = Nil
   | Node
-  { getKey   :: k
-  , getVal   :: TVar v
-  , getUp    :: TNode k v
-  , getNext  :: TNode k v
-  , getDown  :: TNode k v
+  { _getKey   :: k
+  , _getVal   :: TVar v
+  , _getUp    :: TNode k v
+  , _getNext  :: TNode k v
+  , _getDown  :: TNode k v
   }
 
 type TNode k v = TVar (Node k v)
@@ -65,11 +65,11 @@ type TNode k v = TVar (Node k v)
 -- | Abbreviation stands for Per Thread Random Linked List (-based) Skip-List PQ
 data PTRLLSLPQ k v
   = PQ
-  { getTop       :: TNode k v  -- top-node of the main layout
-  , getBottom    :: TNode k v  -- bottom-node of the main layout
-  , getHeight    :: TVar Int   -- height of the main layout
-  , getNil       :: TNode k v  -- pointer to Nil shared by all nodes
-  , getGenIO     :: TArray Int GenIO -- RNG
+  { _getTop       :: TNode k v  -- top-node of the main layout
+  , _getBottom    :: TNode k v  -- bottom-node of the main layout
+  , _getHeight    :: TVar Int   -- height of the main layout
+  , _getNil       :: TNode k v  -- pointer to Nil shared by all nodes
+  , _getGenIO     :: TArray Int GenIO -- RNG
   }
 
 buildHeads
@@ -180,13 +180,14 @@ pqDeleteMin (PQ _ bottom' _ _ _) = do
           readTVar v'
       where
         recDel _ Nil = return ()
-        recDel (Node _ _ headUp' next' _)
+        recDel (Node _ _ headUp' next'' _)
                (Node _ _ up' nextnext' _) = do
                  nextnext <- readTVar nextnext'
                  up <- readTVar up'
                  headUp <- readTVar headUp'
-                 writeTVar next' nextnext
+                 writeTVar next'' nextnext
                  recDel headUp up
+        recDel _ _ = error "Illegal state"
 
 
 instance PriorityQueue PTRLLSLPQ where

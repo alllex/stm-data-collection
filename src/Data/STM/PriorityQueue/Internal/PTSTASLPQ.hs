@@ -49,16 +49,16 @@ type Nodes k v = TArray Int (Node k v)
 
 data Node k v = Nil
               | Node
-              { getKey   :: k
-              , getVal   :: TVar v
-              , getNodes :: Nodes k v
+              { _getKey   :: k
+              , _getVal   :: TVar v
+              , _getNodes :: Nodes k v
               }
 
 -- | Abbreviation stands for Per Thread Seed TArray Skip-List Priority Queue
 data PTSTASLPQ k v = PQ
-  { getHeadNodes :: Nodes k v
-  , getHeight    :: TVar Int
-  , getStates    :: U.IOVector Word64
+  { _getHeadNodes :: Nodes k v
+  , _getHeight    :: TVar Int
+  , _getStates    :: U.IOVector Word64
   }
 
 -- | Constant for aligning RNG seed to cache-line

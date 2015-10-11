@@ -22,8 +22,8 @@ import Data.STM.Bag.Class
 data TList v = Nil | TNode v (TVar (TList v))
 
 data TListBag v = B
-    { getHead :: TVar (TList v)
-    , getTail :: TVar (TVar (TList v))
+    { _getHead :: TVar (TList v)
+    , _getTail :: TVar (TVar (TList v))
     }
 
 bNew :: STM (TListBag v)
